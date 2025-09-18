@@ -4,6 +4,7 @@ import { useParams } from "next/navigation"
 import { findBySlug } from "../../lessons"
 import { useEffect, useState } from "react"
 import Cookies from "js-cookie"
+import HeartRateWidget from "../../../../components/HeartRateWidget"
 
 type Profile = { height: string; weight: string; age: string; gender: string }
 
@@ -85,7 +86,7 @@ export default function PracticePage() {
 
   {/* 底部指標 */}
   <div className="absolute bottom-4 left-4 flex flex-wrap gap-4 z-10">
-    <MetricPill value="N/A" label="心率" />
+    <HeartRateWidget />
     <MetricPill value="N/A" label="消耗" />
   </div>
 </div>
