@@ -46,7 +46,11 @@ export default function PracticePage() {
     try {
       // 從 camUrl 取出目前的參數（確保與播放一致）
       const qs = camUrl.split("?")[1] || "width=1280&height=800&fps=15&format=YUY2"
-      const r = await fetch(`/api/snapshot_and_score?slug=${encodeURIComponent(slug)}&qs=${encodeURIComponent(qs)}`, { cache: "no-store" })
+      const target = lesson?.apiTarget ?? slug; // 有 apiTarget 就用，否則退回 slug
+      const r = await fetch(
+        `/api/snapshot_and_score?target=${encodeURIComponent(target)}`,
+        { cache: "no-store" }
+      );
       const j = await r.json()
       if (!stop && typeof j?.percent === "number") {
         setSimilarity(`${j.percent.toFixed(1)}%`)

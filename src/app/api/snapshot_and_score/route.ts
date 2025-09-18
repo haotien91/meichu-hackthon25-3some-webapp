@@ -5,6 +5,7 @@ import crypto from "node:crypto"
 
 // 讓這個 route 每次都跑（不要預先產生）
 export const dynamic = "force-dynamic"
+export const runtime = "nodejs"
 
 // 相機與相似度 API 都在板子本機
 const CAM_BASE = "http://127.0.0.1:5000"
@@ -16,9 +17,7 @@ const TMP_DIR = "/data/meichu/.snaps"
 export async function GET(req: Request) {
     try {
         const url = new URL(req.url)
-        const slug = url.searchParams.get("slug") || "lesson-1"
-        // 前端把目前相機的 queryString 丟上來（例如 width=1400&height=680&fps=20&format=YUY2）
-        const qs   = url.searchParams.get("qs") || "width=1280&height=800&fps=15&format=YUY2"
+        const target = url.searchParams.get("target") || "goddess"  // ★ 從 query 讀 target
 
         // 1) 叫板子相機拍一張
         const snapUrl = `${CAM_BASE}/snap`
@@ -35,7 +34,7 @@ export async function GET(req: Request) {
         await fs.writeFile(filePath, buf)
 
         // 3) 呼叫相似度 API
-        const body = { image_path: filePath, target_name: slug } // 你說 target 用對應的 lesson-x
+        const body = { image_path: filePath, target_name: target } // 你說 target 用對應的 lesson-x
         const simRes = await fetch(SIM_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,8 +43,9 @@ export async function GET(req: Request) {
 
         if (!simRes.ok) {
         // 刪檔後回傳錯誤
+        const errTxt = await simRes.text().catch(() => "")   // ← 加這行
         await fs.unlink(filePath).catch(() => {})
-        return NextResponse.json({ error: `similarity failed ${simRes.status}` }, { status: 502 })
+        return NextResponse.json({ error: `similarity failed ${simRes.status}: ${errTxt}` }, { status: 502 })
         }
 
         const data = await simRes.json() as { percent?: number }
