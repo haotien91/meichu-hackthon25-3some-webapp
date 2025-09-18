@@ -21,7 +21,7 @@ export async function GET(req: Request) {
         const qs   = url.searchParams.get("qs") || "width=1280&height=800&fps=15&format=YUY2"
 
         // 1) 叫板子相機拍一張
-        const snapUrl = `${CAM_BASE}/snap?${qs}`
+        const snapUrl = `${CAM_BASE}/snap`
         const snapRes = await fetch(snapUrl, { cache: "no-store" })
         if (!snapRes.ok) {
         return NextResponse.json({ error: `snap failed ${snapRes.status}` }, { status: 502 })
