@@ -12,11 +12,15 @@ type Profile = { height: string; weight: string; age: string; gender: string }
 // 小圓 pill：左邊小圓點 + 右邊數值/標籤
 function MetricPill({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex items-center gap-3 bg-white/90 rounded-[2rem] px-8 py-4 shadow-md">
-      <span className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 shadow-inner" />
+    <div className="flex items-center gap-3 bg-white/90 rounded-[2rem] px-8 py-4 shadow-md min-w-[150px]">
+      <span className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 shadow-inner flex-none" />
       <div className="leading-tight">
-        <div className="text-2xl font-extrabold text-gray-800">{value}</div>
-        <div className="text-sm text-gray-500">{label}</div>
+        <div className="text-2xl font-extrabold text-gray-800 whitespace-nowrap break-keep">
+          {value}
+        </div>
+        <div className="text-sm text-gray-500 whitespace-nowrap break-keep leading-none">
+          {label}
+        </div>
       </div>
     </div>
   )
