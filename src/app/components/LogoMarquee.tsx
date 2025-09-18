@@ -3,15 +3,15 @@ import Image from "next/image";
 import { useEffect, useState } from "react"
 
 const logos = [
-    { src: "/Google_logo.png", alt: "Google logo" },
-    { src: "/Microsoft_logo.png", alt: "Microsoft logo" },
-    { src: "/Nvidia_logo.png", alt: "Nvidia logo" },
-    { src: "/Tesla_logo.png", alt: "Tesla logo" },
-    { src: "/IBM_logo.png", alt: "IBM logo" },
-    { src: "/Logitech_logo.png", alt: "Logitech logo" },
-    { src: "/NXP_Semiconductors_logo.png", alt: "NXP logo" },
-    { src: "/Oracle_logo.png", alt: "Oracle logo" },
-    { src: "/Tsmc_logo.png", alt: "TSMC logo" },
+    { src: "/logo/Google_logo.png", alt: "Google logo" },
+    { src: "/logo/Microsoft_logo.png", alt: "Microsoft logo" },
+    { src: "/logo/Nvidia_logo.png", alt: "Nvidia logo" },
+    { src: "/logo/Tesla_logo.png", alt: "Tesla logo" },
+    { src: "/logo/IBM_logo.png", alt: "IBM logo" },
+    { src: "/logo/Logitech_logo.png", alt: "Logitech logo" },
+    { src: "/logo/NXP_Semiconductors_logo.png", alt: "NXP logo" },
+    { src: "/logo/Oracle_logo.png", alt: "Oracle logo" },
+    { src: "/logo/Tsmc_logo.png", alt: "TSMC logo" },
     // 有更多就往下加；只有一張時我會在程式內重複多次
     ];
 

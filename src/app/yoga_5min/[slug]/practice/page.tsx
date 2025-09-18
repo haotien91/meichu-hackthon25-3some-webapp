@@ -73,7 +73,16 @@ export default function PracticePage() {
 
   {/* 右上角：目標小窗 + 指標（保持不動） */}
   <div className="absolute top-4 right-4 z-10 w-[20rem] flex flex-col items-stretch gap-3">
-    <div className="h-[12rem] w-full rounded-2xl border-2 border-purple-400/70 bg-gradient-to-b from-white/90 to-indigo-50/60 shadow-xl relative">
+    <div className="h-[12rem] w-full rounded-2xl border-2 border-purple-400/70 bg-white shadow-xl relative overflow-hidden">
+      {lesson?.image ? (
+        <img
+          src={lesson.image}
+          alt={`${lesson.title} 目標`}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <div className="absolute inset-0" />
+      )}
       <span className="absolute top-3 left-4 px-3 py-1 rounded-full bg-white shadow text-gray-700 font-semibold text-sm">
         目標
       </span>
