@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  font-family: var(--font-orbitron), sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-orbitron); 
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* 無縫水平跑馬燈：兩份內容，位移一半 */
+@keyframes marquee-x {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); } /* 軌道含兩份內容 → 只移動一半剛好無縫 */
+}
+
+/* 外層容器：可滑動、hover 暫停在桌面 */
+.marquee-outer { position: relative; overflow: hidden; }
+.marquee-track {
+  display: flex;
+  width: max-content;                 /* 軌道寬度等於內容實際寬度 */
+  animation: marquee-x 180s linear infinite;
+  will-change: transform;
+}
+.marquee-outer:hover .marquee-track { animation-play-state: paused; }
+
+/* 小螢幕：關閉動畫、允許手動左右滑 */
+@media (max-width: 768px) {
+  .marquee-track { animation: none !important; }
+  .marquee-outer {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+  }
+  .marquee-item { scroll-snap-align: center; }
+}
