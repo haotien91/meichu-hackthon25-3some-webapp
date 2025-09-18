@@ -139,15 +139,19 @@ export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps
       setIsLoading(true)
       setError(null)
 
-      // 清除之前的心率數據
-      setCurrentHeartRate(null)
+      // 只有在選擇不同設備時才清除心率數據
+      if (selectedDevice !== deviceId) {
+        setCurrentHeartRate(null)
+        console.log('Clearing heart rate data for device switch...')
+      } else {
+        console.log('Re-selecting same device, keeping current heart rate data...')
+      }
 
       await apiService.selectDevice(deviceId)
       setSelectedDevice(deviceId)
       setShowDeviceSelector(false)
 
       console.log(`Selected device: ${deviceId}`)
-      console.log('Cleared previous heart rate data, waiting for new data...')
     } catch (error) {
       console.error('Error selecting device:', error)
       setError('Failed to select device')
@@ -157,10 +161,8 @@ export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps
   }
 
   const handleWidgetClick = () => {
-    if (!selectedDevice) {
-      setShowDeviceSelector(true)
-      loadDevices() // Refresh devices when opening selector
-    }
+    setShowDeviceSelector(true)
+    loadDevices() // Refresh devices when opening selector
   }
 
   const getDisplayValue = () => {
@@ -181,7 +183,7 @@ export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps
     <>
       {/* Heart Rate Widget */}
       <div
-        className={`flex items-center gap-3 bg-white/90 rounded-[2rem] px-8 py-4 shadow-md ${!selectedDevice ? 'cursor-pointer hover:bg-white/95' : ''} ${className}`}
+        className={`flex items-center gap-3 bg-white/90 rounded-[2rem] px-8 py-4 shadow-md cursor-pointer hover:bg-white/95 transition-colors duration-200 ${className}`}
         onClick={handleWidgetClick}
       >
         <span className={`h-9 w-9 rounded-full ${getCircleColor()} shadow-inner`} />
@@ -246,11 +248,22 @@ export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps
                       key={device.id}
                       onClick={() => handleDeviceSelect(device.id)}
                       disabled={isLoading}
-                      className="p-4 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`p-4 rounded-lg border-2 transition-all text-left disabled:opacity-50 disabled:cursor-not-allowed ${
+                        selectedDevice === device.id
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+                      }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="font-medium text-gray-800">{device.name}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-gray-800">{device.name}</h3>
+                            {selectedDevice === device.id && (
+                              <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                已連接
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-500">
                             {device.address}
                           </p>
@@ -258,7 +271,7 @@ export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps
                             RSSI: {device.rssi}dBm | 發現時間: {new Date(device.first_seen).toLocaleTimeString()}
                           </p>
                         </div>
-                        <Heart className="w-5 h-5 text-red-500" />
+                        <Heart className={`w-5 h-5 ${selectedDevice === device.id ? 'text-green-500' : 'text-red-500'}`} />
                       </div>
                     </button>
                   ))}
