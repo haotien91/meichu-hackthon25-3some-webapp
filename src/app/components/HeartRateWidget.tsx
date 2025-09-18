@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Heart, Bluetooth, X } from 'lucide-react'
-import apiService from '../lib/api-service'
+import apiService from '../../lib/api-service'
 
 interface Device {
   id: string

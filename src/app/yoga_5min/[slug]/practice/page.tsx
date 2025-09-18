@@ -4,7 +4,7 @@ import { useParams } from "next/navigation"
 import { findBySlug } from "../../lessons"
 import { useEffect, useState } from "react"
 import Cookies from "js-cookie"
-import HeartRateWidget from "../../../../components/HeartRateWidget"
+import HeartRateWidget from "../../../components/HeartRateWidget"
 
 type Profile = { height: string; weight: string; age: string; gender: string }
 
@@ -29,6 +29,7 @@ export default function PracticePage() {
   const [showConsent, setShowConsent] = useState(true)  // 進場先顯示同意彈窗
   const [camOn, setCamOn] = useState(false)             // 是否顯示相機（UI 示意）
   const [camUrl, setCamUrl] = useState<string | null>(null)
+  const [similarity, setSimilarity] = useState<string>("N/A")
 
   useEffect(() => {
     const raw = Cookies.get("personal_info")
@@ -36,6 +37,34 @@ export default function PracticePage() {
       try { setProfile(JSON.parse(raw)) } catch {}
     }
   }, [])
+
+  useEffect(() => {
+  if (!camOn || !camUrl) return
+
+  let stop = false
+  const tick = async () => {
+    try {
+      // 從 camUrl 取出目前的參數（確保與播放一致）
+      const qs = camUrl.split("?")[1] || "width=1280&height=800&fps=15&format=YUY2"
+      const r = await fetch(`/api/snapshot_and_score?slug=${encodeURIComponent(slug)}&qs=${encodeURIComponent(qs)}`, { cache: "no-store" })
+      const j = await r.json()
+      if (!stop && typeof j?.percent === "number") {
+        setSimilarity(`${j.percent.toFixed(1)}%`)
+      }
+    } catch {
+      if (!stop) setSimilarity("N/A")
+    }
+  }
+
+    // 先跑一次，然後每 10 秒
+    tick()
+    const id = setInterval(tick, 10_000)
+    return () => {
+      stop = true
+      clearInterval(id)
+    }
+  }, [camOn, camUrl, slug])
+
 
   if (!lesson) return <main className="p-8">找不到課程</main>
 
@@ -88,7 +117,7 @@ export default function PracticePage() {
       </span>
     </div>
     <div className="flex gap-3 w-full">
-      <div className="flex-1"><MetricPill value="N/A" label="相似度" /></div>
+      <div className="flex-1"><MetricPill value={ similarity } label="相似度" /></div>
       <div className="flex-1"><MetricPill value="N/A" label="用時" /></div>
     </div>
   </div>
