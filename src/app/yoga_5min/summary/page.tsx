@@ -1,10 +1,19 @@
 "use client"
 
+import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { lessons } from "../lessons";
 import { useProgramRun } from "../../../lib/useProgramRun";
 import Navbar from "../../components/Navbar";
 import { ResponsiveContainer, LineChart, Line, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
+export default function SummaryPage() {
+  return (
+    <Suspense fallback={<main className="flex min-h-screen items-center justify-center bg-[#fbeebd]"><div className="text-gray-700">Loading...</div></main>}>
+      <SummaryContent />
+    </Suspense>
+  );
+}
+
 
 function formatTime(totalSeconds: number) {
   const m = Math.floor((totalSeconds || 0) / 60);
@@ -24,7 +33,7 @@ function Pill({ value, label }: { value: string; label: string }) {
   );
 }
 
-export default function SummaryPage() {
+function SummaryContent() {
   const params = useSearchParams();
   const router = useRouter();
   const runId = params.get("run") || undefined;
