@@ -12,7 +12,7 @@ except ImportError:
     WEBSOCKET_AVAILABLE = False
 
 DEVICE = os.environ.get("CAM_DEV", "/dev/video0")
-DEF_W, DEF_H, DEF_FPS, DEF_FMT = 1280, 800, 60, "NV12"
+DEF_W, DEF_H, DEF_FPS, DEF_FMT = 640, 480, 60, "NV12"
 ALLOWED_FMT = {"NV12", "YUYV"}
 
 RAM_DIR = "/dev/shm/cam"
@@ -69,7 +69,7 @@ def _gst_cmd(w:int,h:int,fps:int,fmt:str) -> str:
         "videoconvert ! "
         "queue max-size-buffers=1 leaky=downstream ! "  # 最小緩衝，防止累積延遲
         # 🚀 快速編碼設定
-        "jpegenc quality=75 speed-preset=ultrafast ! "  # 平衡品質與速度
+        "jpegenc quality=50 ! "  # 優化速度
         # 📁 減少檔案輪替開銷
         f"multifilesink location={d}/frame-%04d.jpg max-files=6"  # 減少到6個檔案
     )
