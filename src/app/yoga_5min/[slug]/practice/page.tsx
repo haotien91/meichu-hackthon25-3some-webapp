@@ -148,19 +148,20 @@ export default function PracticePage() {
 
     const tick = async () => {
       try {
-        const r = await fetch(`/api/snapshot_and_score?target=${encodeURIComponent(target)}`, { cache: "no-store" })
-        const j = await r.json()
+        const res = await fetch(`/api/snapshot_and_score?target_pose=${encodeURIComponent(target)}`, { cache: "no-store" })
+        if (!res.ok) throw new Error(String(res.status))
+        const { similarity, body_found } = await res.json()
         if (stop) return
-        if (typeof j?.percent === "number") {
-          const n = Math.round(j.percent)           // ★ 只留整數
-          setSimNum(n)
-          setSimilarity(`${n}%`)
-          setStreak(prev => (n >= 70 ? prev + 1 : 0))   // ★ 連續秒數累加/歸零
-        } else {
+        if (body_found === false || !Number.isFinite(similarity)) {
           setSimNum(null)
           setSimilarity("N/A")
           setStreak(0)
+          return
         }
+        const n = Math.round(similarity)
+        setSimNum(n)
+        setSimilarity(`${n}%`)
+        setStreak(prev => (n >= 70 ? prev + 1 : 0))
       } catch {
         if (!stop) {
           setSimNum(null)
