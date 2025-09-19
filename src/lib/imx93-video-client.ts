@@ -60,12 +60,13 @@ export class Imx93VideoClient {
   private async tryWebSocketConnection(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
+        console.log('🔗 Attempting WebSocket connection to:', this.config.wsUrl)
         this.ws = new WebSocket(this.config.wsUrl)
         let resolved = false
 
         // 連接成功
         this.ws.onopen = () => {
-          console.log('🔗 WebSocket connected to imx93')
+          console.log('✅ WebSocket connected to imx93:', this.config.wsUrl)
           this.isConnected = true
           this.retryCount = 0
           if (!resolved) {
@@ -89,6 +90,12 @@ export class Imx93VideoClient {
         // 連接錯誤
         this.ws.onerror = (error) => {
           console.error('❌ WebSocket error:', error)
+          console.error('❌ WebSocket URL:', this.config.wsUrl)
+          console.error('❌ Error details:', {
+            url: this.config.wsUrl,
+            readyState: this.ws?.readyState,
+            error: error
+          })
           if (!resolved) {
             resolved = true
             resolve(false)

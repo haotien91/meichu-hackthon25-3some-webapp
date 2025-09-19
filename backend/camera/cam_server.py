@@ -149,6 +149,24 @@ def update_latest_frame():
     global latest_frame_data
     print("🎥 Starting frame update thread...")
 
+    # 等待攝影機管道啟動
+    startup_wait = 0
+    while startup_wait < 30:  # 最多等待 30 秒
+        try:
+            # 檢查是否有 GStreamer 程序運行
+            result = os.popen("pgrep gst-launch").read().strip()
+            if result:
+                print("✅ GStreamer pipeline detected, starting frame updates")
+                break
+        except:
+            pass
+
+        time.sleep(1)
+        startup_wait += 1
+
+    if startup_wait >= 30:
+        print("⚠️ No GStreamer pipeline found, frame updates will start on demand")
+
     while True:
         try:
             result = read_latest_jpeg(timeout=0.05)
@@ -163,15 +181,28 @@ def update_latest_frame():
             time.sleep(0.03)  # ~30fps 更新頻率
 
         except Exception as e:
-            print(f"❌ Frame update error: {e}")
-            time.sleep(0.1)
+            # 降低錯誤訊息頻率
+            if startup_wait < 30:
+                print(f"❌ Frame update error: {e}")
+            time.sleep(0.5 if startup_wait < 30 else 0.1)
 
 async def video_websocket_handler(websocket, _path):
     """WebSocket 視訊串流處理器"""
     client_addr = websocket.remote_address
     print(f"🔗 New WebSocket client: {client_addr}")
 
+    # 自動啟動攝影機管道 (如果沒有運行)
     try:
+        result = os.popen("pgrep gst-launch").read().strip()
+        if not result:
+            print("🎬 Auto-starting camera pipeline for WebSocket client")
+            # 使用預設參數啟動攝影機
+            ensure_pipeline(DEF_W, DEF_H, DEF_FPS, DEF_FMT)
+    except Exception as e:
+        print(f"⚠️ Auto-start camera failed: {e}")
+
+    try:
+        frame_count = 0
         while True:
             with latest_frame_lock:
                 frame_data = latest_frame_data
@@ -185,6 +216,11 @@ async def video_websocket_handler(websocket, _path):
                     "data": frame_data
                 })
                 await websocket.send(message)
+                frame_count += 1
+
+                # 每 100 幀記錄一次狀態
+                if frame_count % 100 == 0:
+                    print(f"📊 WebSocket sent {frame_count} frames to {client_addr}")
 
             await asyncio.sleep(0.03)  # ~30fps
 

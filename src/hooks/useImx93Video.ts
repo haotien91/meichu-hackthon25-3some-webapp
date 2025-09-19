@@ -44,8 +44,16 @@ export function useImx93Video(): UseImx93VideoReturn {
 
   // 連接函數
   const connect = useCallback(async (): Promise<boolean> => {
+    // 等待 Canvas 準備就緒
+    let retries = 10
+    while (!canvasRef.current && retries > 0) {
+      console.log('⏳ Waiting for canvas to be ready...')
+      await new Promise(resolve => setTimeout(resolve, 100))
+      retries--
+    }
+
     if (!canvasRef.current) {
-      console.error('❌ Canvas not ready')
+      console.error('❌ Canvas not ready after waiting')
       setStatus(prev => ({ ...prev, error: 'Canvas not ready' }))
       return false
     }
