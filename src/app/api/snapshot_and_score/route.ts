@@ -9,7 +9,7 @@ export const runtime = "nodejs"
 
 // 相機與相似度 API 都在板子本機
 const CAM_BASE = "http://127.0.0.1:5000"
-const SIM_API  = "http://127.0.0.1:8000/similarity"
+const SIM_API  = "http://127.0.0.1:8001/similarity"
 
 // 暫存截圖的資料夾（會自動建立）
 const TMP_DIR = "/data/meichu/.snaps"
