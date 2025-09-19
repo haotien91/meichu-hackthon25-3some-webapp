@@ -8,11 +8,11 @@ export const dynamic = "force-dynamic"
 export const runtime = "nodejs"
 
 // 相機與相似度 API 都在板子本機
-const CAM_BASE = "http://127.0.0.1:5000"
-const SIM_API  = "http://127.0.0.1:8001/similarity"
+const CAM_BASE = process.env.NEXT_PUBLIC_IMX93_CAMERA_API_URL
+const SIM_API = process.env.NEXT_PUBLIC_SIM || 'http://192.168.0.174:8001/similarity'
 
 // 暫存截圖的資料夾（會自動建立）
-const TMP_DIR = "/data/meichu/.snaps"
+const TMP_DIR = process.env.NODE_ENV === 'production' ? "/data/meichu/.snaps" : "/tmp/meichu-snaps"
 
 // Types based on updated Similarity API
 type SimilarityOk = { similarity: number; body_found: boolean }
@@ -38,8 +38,8 @@ export async function GET(req: Request) {
     }
     const targetPose = targetPoseRaw.trim()
 
-    // 1) 叫板子相機拍一張
-    const snapUrl = `${CAM_BASE}/snap`
+    // 1) 叫板子相機拍一張 (存在 imx93 本地)
+    const snapUrl = `${CAM_BASE}/snap?save=1`
     const snapRes = await fetch(snapUrl, { cache: "no-store" })
     if (!snapRes.ok) {
       const errTxt = await snapRes.text().catch(() => "")
@@ -48,18 +48,28 @@ export async function GET(req: Request) {
         { status: 502 }
       )
     }
-    const arrBuf = await snapRes.arrayBuffer()
-    const buf = new Uint8Array(arrBuf)
 
-    // 2) 存到暫存檔
-    await fs.mkdir(TMP_DIR, { recursive: true })
-    const filename = `snap_${Date.now()}_${crypto.randomBytes(4).toString("hex")}.jpg`
-    filePath = path.join(TMP_DIR, filename)
-    await fs.writeFile(filePath, buf)
+    // 2) 獲取 imx93 上的檔案路徑
+    const healthRes = await fetch(`${CAM_BASE}/health`, { cache: "no-store" })
+    if (!healthRes.ok) {
+      return NextResponse.json(
+        { error: "camera_health_failed", status: healthRes.status },
+        { status: 502 }
+      )
+    }
 
-    // 3) 呼叫相似度 API
+    const healthData = await healthRes.json()
+    const lastFrame = healthData.last_frame
+    if (!lastFrame) {
+      return NextResponse.json(
+        { error: "no_frame_available", message: "Camera has no frames" },
+        { status: 502 }
+      )
+    }
+
+    // 3) 使用 imx93 檔案路徑呼叫相似度 API
     const payload: { image_path: string; target_pose: string } = {
-      image_path: filePath as string,
+      image_path: lastFrame,  // imx93 本地路徑
       target_pose: targetPose,
     }
 

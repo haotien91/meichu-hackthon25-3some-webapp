@@ -14,7 +14,7 @@ interface VideoStatus {
 }
 
 interface UseImx93VideoReturn {
-  canvasRef: React.RefObject<HTMLCanvasElement>
+  canvasRef: React.RefObject<HTMLCanvasElement | null>
   status: VideoStatus
   connect: () => Promise<boolean>
   disconnect: () => void
@@ -22,7 +22,7 @@ interface UseImx93VideoReturn {
 }
 
 export function useImx93Video(): UseImx93VideoReturn {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const clientRef = useRef<Imx93VideoClient | null>(null)
   const [status, setStatus] = useState<VideoStatus>({
     connected: false,
@@ -36,7 +36,7 @@ export function useImx93Video(): UseImx93VideoReturn {
       const clientStatus = clientRef.current.getConnectionStatus()
       setStatus({
         connected: clientStatus.connected,
-        connectionType: clientStatus.connected ? clientStatus.type : 'disconnected',
+        connectionType: clientStatus.connected ? (clientStatus.type as "websocket" | "http") : 'disconnected',
         retryCount: clientStatus.retryCount
       })
     }
