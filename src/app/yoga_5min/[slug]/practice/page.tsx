@@ -2,10 +2,11 @@
 
 import { useParams, useRouter } from "next/navigation"
 import { findBySlug } from "../../lessons"
-import { lessons } from "../../lessons" 
+import { lessons } from "../../lessons"
 import { useEffect, useState } from "react"
 import Cookies from "js-cookie"
 import HeartRateWidget from "../../../components/HeartRateWidget"
+import aggregator from "../../../../lib/programRunAggregator"
 import { useImx93Video } from "../../../../hooks/useImx93Video"
 
 type Profile = { height: string; weight: string; age: string; gender: string }
@@ -28,7 +29,7 @@ function MetricPill({ value, label }: { value: string; label: string }) {
 }
 
 export default function PracticePage() {
-  const router = useRouter()    
+  const router = useRouter()
   const { slug } = useParams<{ slug: string }>()
   const lesson = findBySlug(slug)
 
@@ -75,8 +76,11 @@ export default function PracticePage() {
     }
   }
 
-  // ★ 心率更新時計算卡路里增量
+  // ★ 心率更新時計算卡路里增量 + 記錄心率樣本
   const updateCalories = (newHeartRate: number) => {
+    // 記錄心率樣本供彙總
+    aggregator.recordHeartRate(newHeartRate)
+
     if (!profile || !lastHeartRateTime) {
       setLastHeartRateTime(new Date())
       return
@@ -98,7 +102,11 @@ export default function PracticePage() {
     const caloriesPerMin = calculateCaloriesPerMinute(newHeartRate, weight, age, gender)
     const caloriesThisInterval = Math.max(0, caloriesPerMin * timeDiffMinutes)
 
-    setTotalCalories(prev => prev + caloriesThisInterval)
+    setTotalCalories(prev => {
+      const next = prev + caloriesThisInterval
+      aggregator.setCurrentLessonCalories(next)
+      return next
+    })
     setLastHeartRateTime(now)
   }
 
@@ -126,6 +134,21 @@ export default function PracticePage() {
     }
   }, [connectVideo])
 
+  // ★ 啟動/接續本次課程的彙總收集（使用 localStorage）
+  useEffect(() => {
+    if (!slug) return
+    const program = "yoga_5min"
+    const active = aggregator.getActiveRun(program)
+    // 以 cookie 為快照（不阻塞 UI）
+    let snapshot: any = undefined
+    try { const raw = Cookies.get("personal_info"); snapshot = raw ? JSON.parse(raw) : undefined } catch {}
+    if (!active) {
+      aggregator.beginRun(program, snapshot)
+    }
+    aggregator.beginLesson(slug)
+  }, [slug])
+
+
   // ★ 自動開始計時 (相機開啟時)
   useEffect(() => {
     if (camOn && !startTime) {
@@ -144,6 +167,8 @@ export default function PracticePage() {
       const now = new Date()
       const elapsed = now.getTime() - startTime.getTime()
       setElapsedTime(elapsed)
+      // update aggregator elapsed in seconds
+      aggregator.setCurrentLessonElapsed(Math.floor(elapsed / 1000))
     }, 1000)
 
     return () => clearInterval(interval)
@@ -180,6 +205,8 @@ export default function PracticePage() {
         const n = Math.round(similarity)
         setSimNum(n)
         setSimilarity(`${n}%`)
+        // record similarity sample for aggregator
+        aggregator.recordSimilarity(n, true)
         setStreak(prev => (n >= 70 ? prev + 1 : 0))
       } catch {
         if (!stop) {
@@ -196,15 +223,22 @@ export default function PracticePage() {
     return () => { stop = true; clearInterval(id) }
   }, [camOn, videoStatus.connected, slug, lesson])
 
-  // ★ 連續 5 秒達標 -> 跳下一課（practice）
+  // ★ 連續 5 秒達標 -> 跳下一課或顯示總結頁
   useEffect(() => {
     if (!lesson) return
     if (streak >= 5) {
-      // 找下一個 slug
+      try { aggregator.finishLesson() } catch {}
       const idx = lessons.findIndex(l => l.slug === lesson.slug)
       const next = idx >= 0 && idx + 1 < lessons.length ? lessons[idx + 1].slug : null
       if (next) {
         router.push(`/yoga_5min/${next}/practice`)
+      } else {
+        const program = "yoga_5min"
+        const active = aggregator.getActiveRun(program)
+        const runId = active?.runId
+        aggregator.finishProgram()
+        if (runId) router.push(`/yoga_5min/summary?run=${encodeURIComponent(runId)}`)
+        else router.push(`/yoga_5min/summary`)
       }
     }
   }, [streak, lesson, router])
