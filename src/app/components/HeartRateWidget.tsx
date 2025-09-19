@@ -28,9 +28,10 @@ interface HeartRateData {
 
 interface HeartRateWidgetProps {
   className?: string
+  onHeartRateUpdate?: (heartRate: number) => void
 }
 
-export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps) {
+export default function HeartRateWidget({ className = '', onHeartRateUpdate }: HeartRateWidgetProps) {
   const [devices, setDevices] = useState<Device[]>([])
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [currentHeartRate, setCurrentHeartRate] = useState<number | null>(null)
@@ -89,6 +90,11 @@ export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps
         setCurrentHeartRate(data.heart_rate)
         console.log(`✅ Updated heart rate: ${data.heart_rate} BPM for device ${data.device_id}`)
 
+        // ★ 通知父組件心率更新 (用於卡路里計算)
+        if (onHeartRateUpdate) {
+          onHeartRateUpdate(data.heart_rate)
+        }
+
         // 檢查數據是否異常固定
         if (data.stats && data.stats.min === data.stats.max && data.stats.count > 10) {
           console.warn(`⚠️ 數據異常：心率值固定在 ${data.heart_rate} BPM，已有 ${data.stats.count} 個相同讀數`)
@@ -97,7 +103,7 @@ export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps
         console.warn(`❌ Invalid heart rate received: ${data.heart_rate} BPM, ignoring`)
       }
     }
-  }, [selectedDevice])
+  }, [selectedDevice, onHeartRateUpdate])
 
   const handleError = useCallback((errorData: { message: string }) => {
     setError(errorData.message || 'Connection error')

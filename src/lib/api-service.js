@@ -3,7 +3,17 @@
  * Provides Mi Band BLE device scanning and heart rate monitoring
  */
 
-const API_BASE_URL = 'http://localhost:8000/api';
+// API Base URL from environment variables
+const API_BASE_URL = process.env.NEXT_PUBLIC_HEART_RATE_API_URL || 'http://localhost:8000/api';
+
+// Debug logging
+if (process.env.NEXT_PUBLIC_DEBUG_HEART_RATE === 'true') {
+  console.log('🔧 Heart Rate API Config:', {
+    baseUrl: API_BASE_URL,
+    reconnectDelay: process.env.NEXT_PUBLIC_HEART_RATE_STREAM_RECONNECT_DELAY,
+    timeout: process.env.NEXT_PUBLIC_HEART_RATE_CONNECTION_TIMEOUT
+  });
+}
 
 class ApiService {
   constructor() {
@@ -96,13 +106,14 @@ class ApiService {
       console.error('❌ EventSource error:', event);
       this.emit('disconnected', event);
 
-      // Attempt to reconnect after 3 seconds
+      // Attempt to reconnect after configured delay
+      const reconnectDelay = parseInt(process.env.NEXT_PUBLIC_HEART_RATE_STREAM_RECONNECT_DELAY) || 3000;
       setTimeout(() => {
         if (this.eventSource && this.eventSource.readyState === EventSource.CLOSED) {
           console.log('🔄 Attempting to reconnect...');
           this.startHeartRateStream();
         }
-      }, 3000);
+      }, reconnectDelay);
     };
 
     return this.eventSource;
