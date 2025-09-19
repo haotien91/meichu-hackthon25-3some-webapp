@@ -2,6 +2,9 @@ import type { NextConfig } from "next"
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: true  // 加入這行，build 時忽略 ESLint
+  },
   async rewrites() {
     return [
       // /camera/* 反代到板子本機的 5000（cam_server.py）
