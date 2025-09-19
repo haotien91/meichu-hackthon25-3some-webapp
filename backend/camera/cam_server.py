@@ -1,4 +1,4 @@
-import os, time, glob, subprocess, threading, json, base64, asyncio
+import os, time, glob, subprocess, threading, json, base64, asyncio, socket
 from typing import Optional, Tuple
 from flask import Flask, Response, request, send_file, abort, jsonify
 
@@ -37,6 +37,18 @@ latest_frame_data: Optional[str] = None  # Base64 編碼的最新幀
 latest_frame_lock = threading.Lock()
 frame_update_thread: Optional[threading.Thread] = None
 websocket_server_thread: Optional[threading.Thread] = None
+
+def get_local_ip():
+    """獲取本地 IP 地址"""
+    try:
+        # 連接到外部地址來獲取本地 IP (不會實際發送數據)
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "192.168.0.174"  # 默認回退
 
 def _cleanup_old_frames():
     for f in glob.glob(os.path.join(frames_dir(), "frame-*.jpg")):
@@ -154,7 +166,7 @@ def update_latest_frame():
             print(f"❌ Frame update error: {e}")
             time.sleep(0.1)
 
-async def video_websocket_handler(websocket, path):
+async def video_websocket_handler(websocket, _path):
     """WebSocket 視訊串流處理器"""
     client_addr = websocket.remote_address
     print(f"🔗 New WebSocket client: {client_addr}")
@@ -234,7 +246,7 @@ def health():
         "last_frame": last,
         "last_mtime": last_mtime,
         "websocket_available": WEBSOCKET_AVAILABLE,
-        "websocket_url": "ws://192.168.0.174:5001/video" if WEBSOCKET_AVAILABLE else None
+        "websocket_url": f"ws://{get_local_ip()}:5001/video" if WEBSOCKET_AVAILABLE else None
     })
 
 @app.route("/ws_info")
@@ -248,7 +260,7 @@ def ws_info():
 
     return jsonify({
         "available": True,
-        "ws_url": "ws://192.168.0.174:5001/video",
+        "ws_url": f"ws://{get_local_ip()}:5001/video",
         "format": "json with base64 jpeg data",
         "frame_rate": "~30fps",
         "message": "Low latency WebSocket video streaming"
@@ -307,7 +319,7 @@ def snap():
         try:
             with open(saved_path, "wb") as f:
                 f.write(data)
-        except Exception as e:
+        except Exception:
             # 存檔失敗也不阻擋回傳影像
             saved_path = None
 

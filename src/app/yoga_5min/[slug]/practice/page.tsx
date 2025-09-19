@@ -159,7 +159,8 @@ export default function PracticePage() {
     const tick = async () => {
       try {
         // 調用 imx93 的相似度計算 API
-        const res = await fetch(`http://192.168.0.174:5000/snap?target_pose=${encodeURIComponent(target)}&save=1`, {
+        const cameraApiUrl = process.env.NEXT_PUBLIC_IMX93_CAMERA_API_URL || 'http://192.168.0.174:5000'
+        const res = await fetch(`${cameraApiUrl}/snap?target_pose=${encodeURIComponent(target)}&save=1`, {
           cache: "no-store"
         })
 
