@@ -41,7 +41,62 @@ export default function PracticePage() {
 
   // ★ 進度檢查用：實際數值 + 連續秒數
   const [simNum, setSimNum] = useState<number | null>(null)
+
+  // ★ 計時與卡路里狀態
+  const [startTime, setStartTime] = useState<Date | null>(null)
+  const [elapsedTime, setElapsedTime] = useState<number>(0) // 毫秒
+  const [totalCalories, setTotalCalories] = useState<number>(0)
+  const [lastHeartRateTime, setLastHeartRateTime] = useState<Date | null>(null)
   const [streak, setStreak] = useState<number>(0)    // 連續 >= 70% 的秒數
+
+  // ★ 卡路里計算函數 (Keytel et al. 2005)
+  const calculateCaloriesPerMinute = (
+    heartRate: number,
+    weight: number,
+    age: number,
+    gender: 'male' | 'female'
+  ): number => {
+    // 超出準確範圍 (90-150 BPM) 的估算
+    if (heartRate < 90 || heartRate > 150) {
+      const baseRate = gender === 'male' ? 1.2 : 1.0
+      const intensityFactor = heartRate < 90 ? 0.5 : Math.min(heartRate / 150, 2.0)
+      return weight * 0.1 * intensityFactor * baseRate
+    }
+
+    // Keytel 公式
+    if (gender === 'male') {
+      return (-55.0969 + (0.6309 * heartRate) + (0.1988 * weight) + (0.2017 * age)) / 4.184
+    } else {
+      return (-20.4022 + (0.4472 * heartRate) - (0.1263 * weight) + (0.074 * age)) / 4.184
+    }
+  }
+
+  // ★ 心率更新時計算卡路里增量
+  const updateCalories = (newHeartRate: number) => {
+    if (!profile || !lastHeartRateTime) {
+      setLastHeartRateTime(new Date())
+      return
+    }
+
+    const now = new Date()
+    const timeDiffMinutes = (now.getTime() - lastHeartRateTime.getTime()) / (1000 * 60)
+
+    // 避免異常時間間隔
+    if (timeDiffMinutes > 0.5 || timeDiffMinutes < 0) {
+      setLastHeartRateTime(now)
+      return
+    }
+
+    const weight = parseInt(profile.weight) || 70 // 預設70kg
+    const age = parseInt(profile.age) || 30       // 預設30歲
+    const gender = profile.gender === 'female' ? 'female' : 'male'
+
+    const caloriesPerMin = calculateCaloriesPerMinute(newHeartRate, weight, age, gender)
+    const caloriesThisInterval = Math.max(0, caloriesPerMin * timeDiffMinutes)
+
+    setTotalCalories(prev => prev + caloriesThisInterval)
+    setLastHeartRateTime(now)
+  }
 
   useEffect(() => {
     const raw = Cookies.get("personal_info")
@@ -60,6 +115,29 @@ export default function PracticePage() {
       setCamOn(true)
     }
   }, [])
+
+  // ★ 自動開始計時 (相機開啟時)
+  useEffect(() => {
+    if (camOn && !startTime) {
+      const now = new Date()
+      setStartTime(now)
+      setLastHeartRateTime(now)
+      console.log('🕐 練習計時開始:', now.toLocaleTimeString())
+    }
+  }, [camOn, startTime])
+
+  // ★ 每秒更新計時
+  useEffect(() => {
+    if (!startTime) return
+
+    const interval = setInterval(() => {
+      const now = new Date()
+      const elapsed = now.getTime() - startTime.getTime()
+      setElapsedTime(elapsed)
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [startTime])
 
   // ★ 每秒打分一次；顯示整數，並累積「連續 >=70% 的秒數」
   useEffect(() => {
@@ -111,6 +189,14 @@ export default function PracticePage() {
     }
   }, [streak, lesson, router])
 
+
+  // ★ 格式化時間顯示
+  const formatElapsedTime = (milliseconds: number): string => {
+    const totalSeconds = Math.floor(milliseconds / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`
+  }
 
   if (!lesson) return <main className="p-8">找不到課程</main>
 
@@ -164,14 +250,14 @@ export default function PracticePage() {
       </div>
       <div className="flex gap-3 w-full">
         <div className="flex-1"><MetricPill value={ similarity } label="相似度" /></div>
-        <div className="flex-1"><MetricPill value="N/A" label="用時" /></div>
+        <div className="flex-1"><MetricPill value={startTime ? formatElapsedTime(elapsedTime) : "0:00"} label="用時" /></div>
       </div>
     </div>
 
     {/* 底部指標 */}
     <div className="absolute bottom-4 left-4 flex flex-wrap gap-4 z-10">
-      <HeartRateWidget />
-      <MetricPill value="N/A" label="消耗" />
+      <HeartRateWidget onHeartRateUpdate={updateCalories} />
+      <MetricPill value={totalCalories > 0 ? `${Math.round(totalCalories)}` : "0"} label="消耗(卡)" />
     </div>
   </div>
 
