@@ -174,9 +174,9 @@ export default function HeartRateWidget({ className = '' }: HeartRateWidgetProps
 
   const getCircleColor = () => {
     if (selectedDevice && currentHeartRate) {
-      return "bg-green-500"
+      return "bg-gradient-to-br from-green-400 to-green-600"
     }
-    return "bg-gradient-to-br from-indigo-400 to-purple-500"
+    return "bg-gradient-to-br from-red-400 to-red-600"
   }
 
   return (
