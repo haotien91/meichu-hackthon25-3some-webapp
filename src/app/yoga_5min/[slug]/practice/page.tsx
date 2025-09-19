@@ -6,6 +6,7 @@ import { lessons } from "../../lessons"
 import { useEffect, useState } from "react"
 import Cookies from "js-cookie"
 import HeartRateWidget from "../../../components/HeartRateWidget"
+import { useImx93Video } from "../../../../hooks/useImx93Video"
 
 type Profile = { height: string; weight: string; age: string; gender: string }
 
@@ -35,6 +36,9 @@ export default function PracticePage() {
   const [showConsent, setShowConsent] = useState(true)  // 進場先顯示同意彈窗
   const [camOn, setCamOn] = useState(false)             // 是否顯示相機（UI 示意）
   const [camUrl, setCamUrl] = useState<string | null>(null)
+
+  // ⚡ imx93 WebSocket 視訊串流
+  const { canvasRef, status: videoStatus, connect: connectVideo, disconnect: disconnectVideo } = useImx93Video()
 
 // 顯示用：整數百分比字串
   const [similarity, setSimilarity] = useState<string>("N/A")
@@ -110,11 +114,17 @@ export default function PracticePage() {
     const ok = Cookies.get("cam_consent") === "1"
     if (ok) {
       setShowConsent(false)
-      const qs = new URLSearchParams({ width: "1400", height: "680", fps: "20", format: "YUY2" }).toString()
-      setCamUrl(`/camera/video?${qs}`)
       setCamOn(true)
+      // 自動連接 imx93 視訊串流
+      connectVideo().then(success => {
+        if (success) {
+          console.log('✅ Auto-connected to imx93 video stream')
+        } else {
+          console.error('❌ Auto-connection to imx93 failed')
+        }
+      })
     }
-  }, [])
+  }, [connectVideo])
 
   // ★ 自動開始計時 (相機開啟時)
   useEffect(() => {
@@ -141,16 +151,25 @@ export default function PracticePage() {
 
   // ★ 每秒打分一次；顯示整數，並累積「連續 >=70% 的秒數」
   useEffect(() => {
-    if (!camOn || !camUrl || !lesson) return
+    if (!camOn || !videoStatus.connected || !lesson) return
 
     let stop = false
     const target = lesson.apiTarget ?? slug
 
     const tick = async () => {
       try {
-        const res = await fetch(`/api/snapshot_and_score?target_pose=${encodeURIComponent(target)}`, { cache: "no-store" })
+        // 調用 imx93 的相似度計算 API
+        const res = await fetch(`http://192.168.0.174:5000/snap?target_pose=${encodeURIComponent(target)}&save=1`, {
+          cache: "no-store"
+        })
+
         if (!res.ok) throw new Error(String(res.status))
-        const { similarity, body_found } = await res.json()
+
+        // 這裡需要根據 imx93 的實際 API 響應格式調整
+        // 目前假設返回 { similarity: number, body_found: boolean }
+        const data = await res.json()
+        const { similarity, body_found } = data
+
         if (stop) return
         if (body_found === false || !Number.isFinite(similarity)) {
           setSimNum(null)
@@ -175,7 +194,7 @@ export default function PracticePage() {
     tick()
     const id = setInterval(tick, 1000)
     return () => { stop = true; clearInterval(id) }
-  }, [camOn, camUrl, slug, lesson])
+  }, [camOn, videoStatus.connected, slug, lesson])
 
   // ★ 連續 5 秒達標 -> 跳下一課（practice）
   useEffect(() => {
@@ -215,15 +234,23 @@ export default function PracticePage() {
   >
     {/* 主畫面：改成 inset-0 + 圓角裁切，完全貼齊、不留邊 */}
     <div className="absolute inset-0 rounded-3xl overflow-hidden">
-      {camOn && camUrl ? (
-        <img
-          src={camUrl}
-          alt="Board camera"
+      {camOn ? (
+        <canvas
+          ref={canvasRef}
+          width={1280}
+          height={720}
           className="h-full w-full object-cover"   // 無邊框鋪滿
         />
       ) : (
         <div className="h-full w-full flex items-center justify-center">
-          <p className="text-gray-600 font-bold text-lg">相機未開啟</p>
+          <div className="text-center">
+            <p className="text-gray-600 font-bold text-lg">相機未開啟</p>
+            {videoStatus.error && (
+              <p className="text-red-500 text-sm mt-2">
+                錯誤: {videoStatus.error}
+              </p>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -291,13 +318,19 @@ export default function PracticePage() {
                   不同意
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     // ★ 記住同意，之後不再問
                     Cookies.set("cam_consent", "1", { expires: 365 })
                     setShowConsent(false)
-                    const qs = new URLSearchParams({ width: "1400", height: "680", fps: "20", format: "YUY2" }).toString()
-                    setCamUrl(`/camera/video?${qs}`)
                     setCamOn(true)
+
+                    // 連接 imx93 視訊串流
+                    const success = await connectVideo()
+                    if (success) {
+                      console.log('✅ Connected to imx93 video stream')
+                    } else {
+                      console.error('❌ Failed to connect to imx93 video stream')
+                    }
                   }}
                   className="flex-1 rounded-lg bg-gray-900 px-5 py-5 text-white hover:bg-gray-800 active:scale-[0.98] transition text-2xl font-semibold"
                 >
