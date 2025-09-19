@@ -1,6 +1,7 @@
 import os, time, glob, subprocess, threading, json, base64, asyncio, socket
 from typing import Optional, Tuple
 from flask import Flask, Response, request, send_file, abort, jsonify
+from flask_cors import CORS
 
 # WebSocket 支援
 try:
@@ -11,8 +12,8 @@ except ImportError:
     WEBSOCKET_AVAILABLE = False
 
 DEVICE = os.environ.get("CAM_DEV", "/dev/video0")
-DEF_W, DEF_H, DEF_FPS, DEF_FMT = 1280, 800, 60, "YUY2"
-ALLOWED_FMT = {"YUY2", "NV12"}
+DEF_W, DEF_H, DEF_FPS, DEF_FMT = 1280, 800, 60, "NV12"
+ALLOWED_FMT = {"NV12", "YUYV"}
 
 RAM_DIR = "/dev/shm/cam"
 FALLBACK_DIR = "/data/cam-test/.frames"
@@ -27,6 +28,7 @@ def frames_dir() -> str:
     return d
 
 app = Flask(__name__)
+CORS(app)
 
 _bg_lock = threading.Lock()
 _bg_proc: Optional[subprocess.Popen] = None
