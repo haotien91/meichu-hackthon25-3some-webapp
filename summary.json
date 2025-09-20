@@ -1,0 +1,37 @@
+{
+"duration": "4:35",
+"calories": 32,
+"avg_similarity": 65,
+"max_similarity": 92,
+"avg_hr": 87.4,
+"poses": [
+{
+"name": "戰士二式",
+"duration": "1:10",
+"calories": 10,
+"avg_similarity": 56.1,
+"avg_hr": 91.2
+},
+{
+"name": "達人坐姿",
+"duration": "1:20",
+"calories": 8,
+"avg_similarity": 71.1,
+"avg_hr": 85.0
+},
+{
+"name": "雙腿交疊式",
+"duration": "1:15",
+"calories": 7,
+"avg_similarity": 82.3,
+"avg_hr": 83.5
+},
+{
+"name": "女神式",
+"duration": "0:50",
+"calories": 7,
+"avg_similarity": 50.0,
+"avg_hr": 90.0
+}
+]
+}

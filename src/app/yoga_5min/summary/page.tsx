@@ -5,7 +5,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { lessons } from "../lessons";
 import { useProgramRun } from "../../../lib/useProgramRun";
 import Navbar from "../../components/Navbar";
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
+import AIFeedback from "../../components/AIFeedback";
+import { transformSummaryData } from "../../../lib/clientUtils";
+import { ResponsiveContainer, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 export default function SummaryPage() {
   return (
     <Suspense fallback={<main className="flex min-h-screen items-center justify-center bg-[#fbeebd]"><div className="text-gray-700">Loading...</div></main>}>
@@ -42,7 +44,12 @@ function SummaryContent() {
 
   const seriesWithTitles = perLesson.map(pl => {
     const meta = lessons.find(l => l.slug === pl.slug);
-    return { ...pl, title: meta?.title || pl.slug, image: meta?.image };
+    return {
+      ...pl,
+      title: meta?.title || pl.slug,
+      displayTitle: meta?.displayTitle || pl.slug,
+      image: meta?.image
+    };
   });
 
   if (!run || !totals) {
@@ -84,6 +91,11 @@ function SummaryContent() {
         </div>
       </section>
 
+      {/* AI Coach Feedback */}
+      <AIFeedback
+        summaryData={transformSummaryData(totals, seriesWithTitles)}
+        runId={run.runId}
+      />
 
       {/* Per-lesson cards */}
       <section className="w-full max-w-7xl bg-white/40 backdrop-blur-2xl rounded-3xl border border-white/30 drop-shadow px-8 py-8 mb-8">
@@ -112,7 +124,7 @@ function SummaryContent() {
                 </div>
               ) : null}
               <div className="p-4">
-                <h3 className="text-xl font-bold text-gray-800 mb-3">{l.title}</h3>
+                <h3 className="text-xl font-bold text-gray-800 mb-3">{l.displayTitle || l.title}</h3>
                 <div className="grid grid-cols-2 gap-3 text-gray-700 font-semibold">
                   <div>用時：{formatTime(l.elapsedSec)}</div>
                   <div>消耗：{Math.round(l.calories)} 卡</div>
@@ -132,7 +144,7 @@ function SummaryContent() {
           <div className="h-80 bg-white rounded-2xl p-4 border">
             <h3 className="font-bold mb-2">平均相似度</h3>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={seriesWithTitles.map(s => ({ name: s.title, avgSim: s.avgSim ?? 0 }))}>
+              <LineChart data={seriesWithTitles.map(s => ({ name: s.displayTitle || s.title, avgSim: s.avgSim ?? 0 }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" interval={0} angle={-15} textAnchor="end" height={60} />
                 <YAxis />
@@ -144,7 +156,7 @@ function SummaryContent() {
           <div className="h-80 bg-white rounded-2xl p-4 border">
             <h3 className="font-bold mb-2">平均心率</h3>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={seriesWithTitles.map(s => ({ name: s.title, avgHR: s.avgHR ?? 0 }))}>
+              <LineChart data={seriesWithTitles.map(s => ({ name: s.displayTitle || s.title, avgHR: s.avgHR ?? 0 }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" interval={0} angle={-15} textAnchor="end" height={60} />
                 <YAxis />
