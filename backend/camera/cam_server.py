@@ -69,9 +69,9 @@ def _gst_cmd(w:int,h:int,fps:int,fmt:str) -> str:
         "videoconvert ! "
         "queue max-size-buffers=1 leaky=downstream ! "  # 最小緩衝，防止累積延遲
         # 🚀 快速編碼設定
-        "jpegenc quality=50 ! "  # 優化速度
+        "jpegenc quality=30 speed-preset=ultrafast ! "  # 60fps 優化
         # 📁 減少檔案輪替開銷
-        f"multifilesink location={d}/frame-%04d.jpg max-files=6"  # 減少到6個檔案
+        f"multifilesink location={d}/frame-%04d.jpg max-files=3"  # 60fps 最小檔案數
     )
 
 def _start_pipeline(w:int, h:int, fps:int, fmt:str) -> None:
@@ -180,7 +180,7 @@ def update_latest_frame():
                 with latest_frame_lock:
                     latest_frame_data = encoded_data
 
-            time.sleep(0.03)  # ~30fps 更新頻率
+            time.sleep(0.016)  # ~60fps 更新頻率
 
         except Exception as e:
             # 降低錯誤訊息頻率
@@ -224,7 +224,7 @@ async def video_websocket_handler(websocket, _path):
                 if frame_count % 100 == 0:
                     print(f"📊 WebSocket sent {frame_count} frames to {client_addr}")
 
-            await asyncio.sleep(0.03)  # ~30fps
+            await asyncio.sleep(0.016)  # ~60fps
 
     except websockets.exceptions.ConnectionClosed:
         print(f"🔌 WebSocket client disconnected: {client_addr}")

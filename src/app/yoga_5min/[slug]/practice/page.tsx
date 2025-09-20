@@ -438,6 +438,10 @@ export default function PracticePage() {
         <div className="flex-1"><MetricPill value={ simNum === null ? 'N/A' : `${simNum}%` } label="相似度" /></div>
         <div className="flex-1"><MetricPill value={startTime ? formatElapsedTime(elapsedTime) : "0:00"} label="用時" /></div>
       </div>
+      <div className="flex gap-3 w-full mt-3">
+        <div className="flex-1"><MetricPill value={videoStatus.fps ? `${videoStatus.fps}` : "0"} label="FPS" /></div>
+        <div className="flex-1"><MetricPill value={videoStatus.connectionType === 'websocket' ? 'WS' : videoStatus.connectionType === 'http' ? 'HTTP' : 'OFF'} label="連線" /></div>
+      </div>
     </div>
 
     {/* 底部指標 */}

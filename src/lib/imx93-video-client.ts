@@ -26,6 +26,12 @@ export class Imx93VideoClient {
   private fallbackImage: HTMLImageElement | null = null
   private fallbackInterval: number | null = null
 
+  // 🎯 FPS 監控
+  private frameCount = 0
+  private lastFpsTime = Date.now()
+  private currentFPS = 0
+  private fpsCallback?: (fps: number) => void
+
   constructor(private config: VideoConfig) {}
 
   /**
@@ -146,7 +152,7 @@ export class Imx93VideoClient {
           // 添加時間戳避免快取
           this.fallbackImage.src = `${this.config.httpUrl}?t=${Date.now()}`
         }
-      }, 100) // ~10fps 降級
+      }, 33) // ~30fps 降級 (改善 HTTP 回退)
 
       this.fallbackImage.onload = () => {
         if (this.ctx && this.canvas && this.fallbackImage) {
@@ -156,6 +162,8 @@ export class Imx93VideoClient {
             this.canvas.width,
             this.canvas.height
           )
+          // 📊 HTTP 降級也計算 FPS
+          this.updateFPS()
         }
       }
 
@@ -173,7 +181,32 @@ export class Imx93VideoClient {
   }
 
   /**
-   * 渲染 WebSocket 接收到的幀
+   * 設定 FPS 回調函數
+   */
+  setFpsCallback(callback: (fps: number) => void) {
+    this.fpsCallback = callback
+  }
+
+  /**
+   * 計算並更新 FPS
+   */
+  private updateFPS() {
+    this.frameCount++
+    const now = Date.now()
+    const elapsed = now - this.lastFpsTime
+
+    if (elapsed >= 1000) { // 每秒計算一次
+      this.currentFPS = Math.round((this.frameCount * 1000) / elapsed)
+      if (this.fpsCallback) {
+        this.fpsCallback(this.currentFPS)
+      }
+      this.frameCount = 0
+      this.lastFpsTime = now
+    }
+  }
+
+  /**
+   * 渲染 WebSocket 接收到的幀 (60fps 優化)
    */
   private renderFrame(base64Data: string) {
     if (!this.ctx || !this.canvas) return
@@ -181,7 +214,14 @@ export class Imx93VideoClient {
     const img = new Image()
     img.onload = () => {
       if (this.ctx && this.canvas) {
-        this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height)
+        // 🚀 使用 requestAnimationFrame 優化 60fps 渲染
+        requestAnimationFrame(() => {
+          if (this.ctx && this.canvas) {
+            this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height)
+            // 📊 更新 FPS 計數
+            this.updateFPS()
+          }
+        })
       }
     }
     img.src = `data:image/jpeg;base64,${base64Data}`

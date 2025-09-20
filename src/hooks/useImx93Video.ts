@@ -11,6 +11,7 @@ interface VideoStatus {
   connectionType: 'websocket' | 'http' | 'disconnected'
   retryCount: number
   error?: string
+  fps?: number
 }
 
 interface UseImx93VideoReturn {
@@ -27,7 +28,8 @@ export function useImx93Video(): UseImx93VideoReturn {
   const [status, setStatus] = useState<VideoStatus>({
     connected: false,
     connectionType: 'disconnected',
-    retryCount: 0
+    retryCount: 0,
+    fps: 0
   })
 
   // 更新狀態
@@ -62,6 +64,11 @@ export function useImx93Video(): UseImx93VideoReturn {
       // 創建新客戶端 (如果不存在)
       if (!clientRef.current) {
         clientRef.current = createImx93VideoClient()
+
+        // 🎯 設定 FPS 回調
+        clientRef.current.setFpsCallback((fps: number) => {
+          setStatus(prev => ({ ...prev, fps }))
+        })
       }
 
       console.log('🎥 Connecting to imx93 video stream...')
@@ -105,7 +112,8 @@ export function useImx93Video(): UseImx93VideoReturn {
     setStatus({
       connected: false,
       connectionType: 'disconnected',
-      retryCount: 0
+      retryCount: 0,
+      fps: 0
     })
     console.log('🔌 Video stream disconnected')
   }, [])
