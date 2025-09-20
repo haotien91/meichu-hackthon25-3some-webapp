@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from "react"
 import Cookies from "js-cookie"
 import HeartRateWidget from "../../../components/HeartRateWidget"
 import aggregator from "../../../../lib/programRunAggregator"
-import FireworksLayer from "../../../components/Firework"
+import FireworksLayer from "../../../components/firework"
 import Modal from "../../../components/Modal";
 import { useImx93Video } from "../../../../hooks/useImx93Video"
 

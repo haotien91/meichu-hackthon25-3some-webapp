@@ -1,6 +1,7 @@
 "use client"
 
 import { safeGet, safeSet, safeRemove, throttle, isBrowser } from "./storage";
+import { cleanupAIFeedbackCache } from "./aiFeedbackCache";
 
 export type Gender = "male" | "female" | "other";
 export type ProfileSnapshot = { height?: string; weight?: string; age?: string; gender?: string };
@@ -172,6 +173,10 @@ class ProgramRunAggregator {
     // keep last 10 runs
     while (arr.length > 10) arr.shift();
     safeSet(key, arr);
+
+    // 清理過期的 AI 回饋快取
+    const validRunIds = arr.map(run => run.runId);
+    cleanupAIFeedbackCache(validRunIds);
 
     // clear active
     safeRemove(ACTIVE_KEY(this.active.program));
