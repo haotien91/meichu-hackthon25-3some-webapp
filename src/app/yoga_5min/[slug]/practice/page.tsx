@@ -3,10 +3,11 @@
 import { useParams, useRouter } from "next/navigation"
 import { findBySlug } from "../../lessons"
 import { lessons } from "../../lessons"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import Cookies from "js-cookie"
 import HeartRateWidget from "../../../components/HeartRateWidget"
 import aggregator from "../../../../lib/programRunAggregator"
+import FireworksLayer from "../../../components/firework"
 import { useImx93Video } from "../../../../hooks/useImx93Video"
 
 type Profile = { height: string; weight: string; age: string; gender: string }
@@ -34,9 +35,14 @@ export default function PracticePage() {
   const lesson = findBySlug(slug)
 
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [showConsent, setShowConsent] = useState(true)  // 進場先顯示同意彈窗
-  const [camOn, setCamOn] = useState(false)             // 是否顯示相機（UI 示意）
+  const [showConsent, setShowConsent] = useState<boolean | null>(null); // null = 尚未判斷
+  const [camOn, setCamOn]             = useState(false);
+  const [showHrModal, setShowHrModal] = useState(false)
   const [camUrl, setCamUrl] = useState<string | null>(null)
+
+  const [showCongrats, setShowCongrats] = useState(false);
+  const [nextCountdown, setNextCountdown] = useState(5);
+  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // ⚡ imx93 WebSocket 視訊串流
   const { canvasRef, status: videoStatus, connect: connectVideo, disconnect: disconnectVideo } = useImx93Video()
@@ -53,6 +59,36 @@ export default function PracticePage() {
   const [totalCalories, setTotalCalories] = useState<number>(0)
   const [lastHeartRateTime, setLastHeartRateTime] = useState<Date | null>(null)
   const [streak, setStreak] = useState<number>(0)    // 連續 >= 70% 的秒數
+
+  const getNextSlug = (currentSlug?: string | null) => {
+  if (!currentSlug) return null;
+  const idx = lessons.findIndex(l => l.slug === currentSlug);
+  return idx >= 0 && idx + 1 < lessons.length ? lessons[idx + 1].slug : null;
+};
+
+  // 前往下一步
+  const goNext = () => {
+  const next = getNextSlug(lesson?.slug ?? slug);
+  if (next) {
+    router.push(`/yoga_5min/${next}/practice`);
+  } else {
+    const program = "yoga_5min";
+    const active = aggregator.getActiveRun(program);
+    const runId = active?.runId;
+    aggregator.finishProgram();
+    if (runId) router.push(`/yoga_5min/summary?run=${encodeURIComponent(runId)}`);
+    else router.push(`/yoga_5min/summary`);
+  }
+};
+
+
+  // 清除倒數計時器
+  const clearCountdown = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  };
 
   // ★ 卡路里計算函數 (Keytel et al. 2005)
   const calculateCaloriesPerMinute = (
@@ -117,22 +153,28 @@ export default function PracticePage() {
     }
   }, [])
 
-  // ★ 首次進來，如果之前已同意，就不顯示彈窗、直接開相機
   useEffect(() => {
-    const ok = Cookies.get("cam_consent") === "1"
-    if (ok) {
-      setShowConsent(false)
-      setCamOn(true)
-      // 自動連接 imx93 視訊串流
-      connectVideo().then(success => {
-        if (success) {
-          console.log('✅ Auto-connected to imx93 video stream')
-        } else {
-          console.error('❌ Auto-connection to imx93 failed')
-        }
-      })
-    }
-  }, [connectVideo])
+  const consent =
+    Cookies.get("cam_consent") === "1" ||
+    typeof window !== "undefined" && localStorage.getItem("cam_consent") === "1";
+
+  setShowConsent(!consent);   // true → 顯示彈窗
+  setCamOn(consent);          // 同意過就直接開相機
+
+  // 已同意的話自動連線
+  if (consent) {
+    (async () => {
+      const ok = await connectVideo();
+      if (!ok){
+        console.error("❌ auto-connect failed");
+      }
+      else {
+        setShowHrModal(true);
+      }
+    })();
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ★ 啟動/接續本次課程的彙總收集（使用 localStorage）
   useEffect(() => {
@@ -225,23 +267,33 @@ export default function PracticePage() {
 
   // ★ 連續 5 秒達標 -> 跳下一課或顯示總結頁
   useEffect(() => {
-    if (!lesson) return
-    if (streak >= 5) {
-      try { aggregator.finishLesson() } catch {}
-      const idx = lessons.findIndex(l => l.slug === lesson.slug)
-      const next = idx >= 0 && idx + 1 < lessons.length ? lessons[idx + 1].slug : null
-      if (next) {
-        router.push(`/yoga_5min/${next}/practice`)
-      } else {
-        const program = "yoga_5min"
-        const active = aggregator.getActiveRun(program)
-        const runId = active?.runId
-        aggregator.finishProgram()
-        if (runId) router.push(`/yoga_5min/summary?run=${encodeURIComponent(runId)}`)
-        else router.push(`/yoga_5min/summary`)
-      }
-    }
-  }, [streak, lesson, router])
+  if (!lesson) return;
+  if (streak >= 5 && !showCongrats) {
+    // 結束這堂課的彙總
+    try { aggregator.finishLesson() } catch {}
+    // 開慶祝視窗 + 啟動倒數
+    setShowCongrats(true);
+    setNextCountdown(5);
+    clearCountdown();
+    countdownTimerRef.current = setInterval(() => {
+      setNextCountdown((s) => {
+        if (s <= 1) {
+          clearCountdown();
+          goNext();
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  }
+}, [streak, lesson, showCongrats]);  // 這個 effect 不要放 router 以免重跑
+
+  useEffect(() => {
+    return () => {
+      try { disconnectVideo?.() } catch {}
+      clearCountdown();
+    };
+  }, [disconnectVideo]);
 
 
   // ★ 格式化時間顯示
@@ -266,6 +318,24 @@ export default function PracticePage() {
       bg-gradient-to-b from-slate-100/70 to-indigo-100/40 backdrop-blur
       shadow-[0_20px_50px_rgba(0,0,0,0.08)] p-0"
   >
+    {/* 頂部置中的提示/倒數浮層 */}
+    {camOn && !showCongrats && (
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
+        {/* 倒數：streak 1..5 依序顯示 5..1 */}
+        {streak > 0 && streak <= 5 ? (
+          <div className="px-6 py-2 rounded-full bg-black/55 text-white text-3xl font-extrabold shadow-lg backdrop-blur">
+            {6 - streak}
+          </div>
+        ) : (
+          // 平常顯示「相似度未達 70%」
+          simNum !== null && simNum < 70 && (
+            <div className="px-3 py-1 rounded-full bg-white/85 text-gray-800 text-sm font-semibold shadow">
+              相似度未達 70%
+            </div>
+          )
+        )}
+      </div>
+    )}
     {/* 主畫面：改成 inset-0 + 圓角裁切，完全貼齊、不留邊 */}
     <div className="absolute inset-0 rounded-3xl overflow-hidden">
       {camOn ? (
@@ -344,26 +414,32 @@ export default function PracticePage() {
               <h2 id="modal-title" className="text-4xl font-bold text-gray-900 py-6">將開啟相機功能</h2>
               <p className="text-gray-600 text-lg">我們會在主畫面顯示即時相機畫面。是否同意開啟？</p>
               <div className="mt-8 flex gap-6">
+                {/* 不同意 */}
                 <button
                   autoFocus
-                  onClick={() => { setShowConsent(false); setCamOn(false); setCamUrl(null) }}
+                  onClick={() => {
+                    setShowConsent(false);
+                    setCamOn(false);
+                    // 不要設 cookie、不要連線
+                  }}
                   className="flex-1 rounded-lg bg-gray-200 px-5 py-5 text-gray-800 hover:bg-gray-300 active:scale-[0.98] transition text-2xl font-semibold"
                 >
                   不同意
                 </button>
+                {/* 同意 */}
                 <button
                   onClick={async () => {
-                    // ★ 記住同意，之後不再問
-                    Cookies.set("cam_consent", "1", { expires: 365 })
-                    setShowConsent(false)
-                    setCamOn(true)
+                    Cookies.set("cam_consent", "1", { expires: 365, path: "/" });
+                    localStorage.setItem("cam_consent", "1");
+                    setShowConsent(false);
+                    setCamOn(true);
 
-                    // 連接 imx93 視訊串流
-                    const success = await connectVideo()
-                    if (success) {
-                      console.log('✅ Connected to imx93 video stream')
-                    } else {
-                      console.error('❌ Failed to connect to imx93 video stream')
+                    const ok = await connectVideo();
+                    if (!ok){
+                      console.error("❌ Failed to connect to imx93 video stream");
+                    }
+                    else {
+                      setShowHrModal(true);
                     }
                   }}
                   className="flex-1 rounded-lg bg-gray-900 px-5 py-5 text-white hover:bg-gray-800 active:scale-[0.98] transition text-2xl font-semibold"
@@ -375,6 +451,85 @@ export default function PracticePage() {
           </div>
         </div>
       )}
+
+      {showHrModal && (
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="hr-modal-title"
+      >
+        <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+          <div className="px-10 py-8">
+            <h3 id="hr-modal-title" className="text-2xl font-bold text-gray-900 mb-2">
+              連接藍牙心率裝置
+            </h3>
+            <p className="text-gray-600 mb-6 mt-6">
+              請戴上手並點擊下方按鈕開始配對。配對成功後即可在下方面板看到心率。
+            </p>
+
+            {/* 直接放既有的 HeartRateWidget，不改你原本的更新邏輯 */}
+            <div className="rounded-xl border-gray-200 p-4 mb-6 max-w-min mx-auto">
+              <HeartRateWidget onHeartRateUpdate={updateCalories} />
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowHrModal(false)}
+                className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
+              >
+                稍後再說
+              </button>
+              <button
+                onClick={() => setShowHrModal(false)}
+                className="rounded-lg bg-gray-900 px-4 py-2 text-white hover:bg-gray-800"
+              >
+                完成
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ✅ 達標慶祝視窗 */}
+    {showCongrats && (
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-6">
+        {/* 煙火層 */}
+        <FireworksLayer />
+
+        <div className="relative w-full max-w-xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+          <div className="px-8 py-10 text-center relative">
+            <h3 className="text-4xl font-bold text-gray-900">太棒了！達標 🎉</h3>
+
+            {/* 倒數置中、放大（跟影片頁一致） */}
+            <div className="mt-6 flex flex-col items-center justify-center" aria-live="polite">
+              <span className="text-sm text-gray-500">將在</span>
+              <span className="mt-2 text-7xl font-black text-gray-900 leading-none animate-pulse">
+                {nextCountdown}
+              </span>
+              <span className="mt-2 text-sm text-gray-500">秒後自動前往下一個動作</span>
+            </div>
+
+            {/* 置中按鈕 */}
+            <div className="mt-10 flex justify-center gap-4">
+              <button
+                onClick={() => { setShowCongrats(false); clearCountdown(); }}
+                className="rounded-full px-6 py-3 bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
+                先不要
+              </button>
+              <button
+                onClick={() => { clearCountdown(); goNext(); }}
+                className="rounded-full px-6 py-3 bg-gray-900 text-white hover:bg-gray-800"
+              >
+                前往下個動作
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </main>
   )
 }

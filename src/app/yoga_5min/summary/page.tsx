@@ -82,7 +82,21 @@ function SummaryContent() {
             <div key={l.slug} className="rounded-2xl border-2 border-purple-300/60 bg-white shadow relative overflow-hidden">
               {l.image ? (
                 <div className="h-40 w-full relative overflow-hidden">
-                  <img src={l.image} alt={l.title} className="absolute inset-0 w-full h-full object-cover" />
+                  {l.image ? (
+                  <div className="h-40 w-full relative bg-white">
+                    {/* 讓圖片在固定高的框內置中、按比例縮放 */}
+                    <div className="absolute inset-0 flex items-center justify-center p-2">
+                      <img
+                        src={l.image}
+                        alt={l.title}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                    <span className="absolute top-2 left-2 px-3 py-1 rounded-full bg-white shadow text-gray-700 font-semibold text-sm">
+                      目標
+                    </span>
+                  </div>
+                ) : null}
                   <span className="absolute top-2 left-2 px-3 py-1 rounded-full bg-white shadow text-gray-700 font-semibold text-sm">目標</span>
                 </div>
               ) : null}

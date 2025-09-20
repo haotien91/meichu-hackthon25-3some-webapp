@@ -18,6 +18,16 @@ export default function DemoVideoPage() {
   // 播放完畢彈窗
   const [showModal, setShowModal] = useState(false)
 
+  const [endCountdown, setEndCountdown] = useState(5)
+  const endTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const clearEndTimer = () => {
+    if (endTimerRef.current) {
+      clearInterval(endTimerRef.current)
+      endTimerRef.current = null
+    }
+  }
+
   // YouTube Player 相關
   const endedOnceRef = useRef(false)
   const playerRef = useRef<any>(null)
@@ -43,10 +53,24 @@ export default function DemoVideoPage() {
             const YT = (window as any).YT
             if (!endedOnceRef.current && event?.data === YT?.PlayerState?.ENDED) {
               endedOnceRef.current = true
-              exitFullscreen() 
+              exitFullscreen()
               setShowModal(true)
+
+              // 啟動 5 秒倒數
+              setEndCountdown(5)
+              clearEndTimer()
+              endTimerRef.current = setInterval(() => {
+                setEndCountdown((n) => {
+                  if (n <= 1) {
+                    clearEndTimer()
+                    goPractice()
+                    return 0
+                  }
+                  return n - 1
+                })
+              }, 1000)
             }
-          },
+          }
         },
       })
     }
@@ -66,7 +90,9 @@ export default function DemoVideoPage() {
       ;(window as any).onYouTubeIframeAPIReady = onYouTubeIframeAPIReady
     }
 
-    return () => { try { playerRef.current?.destroy?.() } catch {} }
+    return () => { try { playerRef.current?.destroy?.() } catch {} 
+                    clearEndTimer()
+    }
   }, [lesson])
 
   const startAndPlay = () => {
@@ -163,35 +189,44 @@ export default function DemoVideoPage() {
           aria-labelledby="modal-title"
         >
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl text-center">
-            <div className="px-10 py-8">
-              <h2
-                id="modal-title"
-                className="text-4xl font-bold text-gray-900 py-6"
-              >
+            <div className="px-10 py-8 text-center">
+              <h2 id="modal-title" className="text-4xl font-bold text-gray-900">
                 影片播放完畢
               </h2>
 
-              <div className="mt-6 flex gap-6">
-                {/* 重新播放 */}
+              {/* 倒數置中、放大 */}
+              <div className="mt-6 flex flex-col items-center justify-center">
+                <span className="text-sm text-gray-500">將在</span>
+                <span className="mt-2 text-7xl font-black text-gray-900 leading-none animate-pulse">
+                  {endCountdown}
+                </span>
+                <span className="mt-2 text-sm text-gray-500">秒後自動進入練習</span>
+              </div>
+
+              {/* 置中按鈕 */}
+              <div className="mt-10 flex justify-center gap-4">
                 <button
                   autoFocus
                   onClick={() => {
-                    setShowModal(false)
-                    endedOnceRef.current = false
+                    clearEndTimer();           // 取消倒數
+                    setShowModal(false);
+                    endedOnceRef.current = false;
                     try {
-                      playerRef.current?.seekTo(0)
-                      playerRef.current?.playVideo()
+                      playerRef.current?.seekTo(0);
+                      playerRef.current?.playVideo();
                     } catch {}
                   }}
-                  className="flex-1 rounded-lg bg-gray-900 px-5 py-5 text-white hover:bg-gray-800 active:scale-[0.98] transition text-2xl font-semibold"
+                  className="rounded-full px-6 py-3 bg-gray-200 text-gray-800 hover:bg-gray-300"
                 >
                   重新播放
                 </button>
 
-                {/* 換我試試看 */}
                 <button
-                  onClick={goPractice}
-                  className="flex-1 rounded-lg bg-gray-900 px-5 py-5 text-white hover:bg-gray-800 active:scale-[0.98] transition text-2xl font-semibold"
+                  onClick={() => {
+                    clearEndTimer();           // 取消倒數
+                    goPractice();
+                  }}
+                  className="rounded-full px-6 py-3 bg-gray-900 text-white hover:bg-gray-800"
                 >
                   換我試試看！
                 </button>
@@ -200,7 +235,6 @@ export default function DemoVideoPage() {
           </div>
         </div>
       )}
-
     </main>
   )
 }
