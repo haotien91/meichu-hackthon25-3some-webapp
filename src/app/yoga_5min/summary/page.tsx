@@ -63,12 +63,12 @@ function SummaryContent() {
 
       {/* Program totals */}
       <section className="w-full max-w-7xl bg-white/40 backdrop-blur-2xl rounded-3xl border border-white/30 drop-shadow px-8 py-8 mt-28 mb-8">
-        <h2 className="text-3xl font-extrabold text-gray-800 mb-6">計劃總結</h2>
+        <h2 className="text-3xl font-extrabold text-gray-800 mb-6">總結</h2>
         <div className="flex flex-wrap gap-4">
           <Pill value={formatTime(totals.totalTimeSec)} label="總用時" />
           <Pill value={`${Math.round(totals.totalCalories)}`} label="總消耗(卡)" />
           <Pill value={totals.avgSim != null ? `${totals.avgSim}%` : "N/A"} label="平均相似度" />
-          <Pill value={totals.minSim != null ? `${Math.round(totals.minSim)}%` : "N/A"} label="最低相似度" />
+          {/* <Pill value={totals.minSim != null ? `${Math.round(totals.minSim)}%` : "N/A"} label="最低相似度" /> */}
           <Pill value={totals.maxSim != null ? `${Math.round(totals.maxSim)}%` : "N/A"} label="最高相似度" />
           <Pill value={totals.avgHR != null ? `${totals.avgHR} bpm` : "N/A"} label="平均心率" />
         </div>
@@ -76,7 +76,7 @@ function SummaryContent() {
 
       {/* Per-lesson cards */}
       <section className="w-full max-w-7xl bg-white/40 backdrop-blur-2xl rounded-3xl border border-white/30 drop-shadow px-8 py-8 mb-8">
-        <h2 className="text-3xl font-extrabold text-gray-800 mb-6">每課表現</h2>
+        <h2 className="text-3xl font-extrabold text-gray-800 mb-6">姿態</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {seriesWithTitles.map(l => (
             <div key={l.slug} className="rounded-2xl border-2 border-purple-300/60 bg-white shadow relative overflow-hidden">
@@ -116,22 +116,22 @@ function SummaryContent() {
 
       {/* Charts */}
       <section className="w-full max-w-7xl bg-white/40 backdrop-blur-2xl rounded-3xl border border-white/30 drop-shadow px-8 py-8 mb-8">
-        <h2 className="text-3xl font-extrabold text-gray-800 mb-6">表現趨勢</h2>
+        <h2 className="text-3xl font-extrabold text-gray-800 mb-6">趨勢</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="h-80 bg-white rounded-2xl p-4 border">
-            <h3 className="font-bold mb-2">各課平均相似度</h3>
+            <h3 className="font-bold mb-2">平均相似度</h3>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={seriesWithTitles.map(s => ({ name: s.title, avgSim: s.avgSim ?? 0 }))}>
+              <LineChart data={seriesWithTitles.map(s => ({ name: s.title, avgSim: s.avgSim ?? 0 }))}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis domain={[0, 100]} />
+                <YAxis />
                 <Tooltip />
-                <Bar dataKey="avgSim" fill="#8884d8" />
-              </BarChart>
+                <Line type="monotone" dataKey="avgSim" stroke="#8884d8" strokeWidth={3} dot={false} />
+              </LineChart>
             </ResponsiveContainer>
           </div>
           <div className="h-80 bg-white rounded-2xl p-4 border">
-            <h3 className="font-bold mb-2">各課平均心率</h3>
+            <h3 className="font-bold mb-2">平均心率</h3>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={seriesWithTitles.map(s => ({ name: s.title, avgHR: s.avgHR ?? 0 }))}>
                 <CartesianGrid strokeDasharray="3 3" />
