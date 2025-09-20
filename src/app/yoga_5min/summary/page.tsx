@@ -106,7 +106,6 @@ function SummaryContent() {
                   <div>用時：{formatTime(l.elapsedSec)}</div>
                   <div>消耗：{Math.round(l.calories)} 卡</div>
                   <div>相似度(均)：{l.avgSim != null ? `${l.avgSim}%` : "N/A"}</div>
-                  <div>相似度(高/低)：{l.maxSim != null ? Math.round(l.maxSim) : "-"}% / {l.minSim != null ? Math.round(l.minSim) : "-"}%</div>
                   <div>心率(均)：{l.avgHR != null ? `${l.avgHR} bpm` : "N/A"}</div>
                 </div>
               </div>

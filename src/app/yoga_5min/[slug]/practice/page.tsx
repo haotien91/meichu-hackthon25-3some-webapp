@@ -38,17 +38,25 @@ export default function PracticePage() {
   const [showConsent, setShowConsent] = useState<boolean | null>(null); // null = 尚未判斷
   const [camOn, setCamOn]             = useState(false);
   const [showHrModal, setShowHrModal] = useState(false)
-  const [camUrl, setCamUrl] = useState<string | null>(null)
+  const [heartRate, setHeartRate] = useState<number | null>(null);
 
   const [showCongrats, setShowCongrats] = useState(false);
   const [nextCountdown, setNextCountdown] = useState(5);
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  
+  const [qualifyCountdown, setQualifyCountdown] = useState<number | null>(null); // 5..1
+  const qualifyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearQualifyTimer = () => {
+  if (qualifyTimerRef.current) {
+    clearInterval(qualifyTimerRef.current);
+    qualifyTimerRef.current = null;
+  }
+};
 
   // ⚡ imx93 WebSocket 視訊串流
   const { canvasRef, status: videoStatus, connect: connectVideo, disconnect: disconnectVideo } = useImx93Video()
-
-// 顯示用：整數百分比字串
-  const [similarity, setSimilarity] = useState<string>("N/A")
 
   // ★ 進度檢查用：實際數值 + 連續秒數
   const [simNum, setSimNum] = useState<number | null>(null)
@@ -58,7 +66,7 @@ export default function PracticePage() {
   const [elapsedTime, setElapsedTime] = useState<number>(0) // 毫秒
   const [totalCalories, setTotalCalories] = useState<number>(0)
   const [lastHeartRateTime, setLastHeartRateTime] = useState<Date | null>(null)
-  const [streak, setStreak] = useState<number>(0)    // 連續 >= 70% 的秒數
+  const inFlight = useRef(false);
 
   const getNextSlug = (currentSlug?: string | null) => {
   if (!currentSlug) return null;
@@ -70,7 +78,7 @@ export default function PracticePage() {
   const goNext = () => {
   const next = getNextSlug(lesson?.slug ?? slug);
   if (next) {
-    router.push(`/yoga_5min/${next}/practice`);
+    router.push(`/yoga_5min/${next}/demo_video`);
   } else {
     const program = "yoga_5min";
     const active = aggregator.getActiveRun(program);
@@ -115,6 +123,7 @@ export default function PracticePage() {
   // ★ 心率更新時計算卡路里增量 + 記錄心率樣本
   const updateCalories = (newHeartRate: number) => {
     // 記錄心率樣本供彙總
+    setHeartRate(newHeartRate); 
     aggregator.recordHeartRate(newHeartRate)
 
     if (!profile || !lastHeartRateTime) {
@@ -156,25 +165,23 @@ export default function PracticePage() {
   useEffect(() => {
   const consent =
     Cookies.get("cam_consent") === "1" ||
-    typeof window !== "undefined" && localStorage.getItem("cam_consent") === "1";
+    (typeof window !== "undefined" && localStorage.getItem("cam_consent") === "1");
 
-  setShowConsent(!consent);   // true → 顯示彈窗
-  setCamOn(consent);          // 同意過就直接開相機
+  setShowConsent(!consent);
+  setCamOn(consent);
 
-  // 已同意的話自動連線
   if (consent) {
-    (async () => {
-      const ok = await connectVideo();
-      if (!ok){
-        console.error("❌ auto-connect failed");
-      }
-      else {
-        setShowHrModal(true);
-      }
-    })();
+    // 直接顯示 HR 視窗
+    setShowHrModal(true);
+
+    // 背景連相機
+    void connectVideo().catch((err) => {
+      console.error("❌ auto-connect failed", err);
+    });
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+}, []);
+
 
   // ★ 啟動/接續本次課程的彙總收集（使用 localStorage）
   useEffect(() => {
@@ -224,40 +231,32 @@ export default function PracticePage() {
     const target = lesson.apiTarget ?? slug
 
     const tick = async () => {
-      try {
-        // 調用 Next.js 的相似度計算 API (會內部調用 imx93)
-        const res = await fetch(`/api/snapshot_and_score?target_pose=${encodeURIComponent(target)}`, {
-          cache: "no-store"
-        })
+  if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const res = await fetch(`/api/snapshot_and_score?target_pose=${encodeURIComponent(target)}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(String(res.status));
 
-        if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json();
+      const { similarity, body_found } = data;
 
-        // 這裡需要根據 imx93 的實際 API 響應格式調整
-        // 目前假設返回 { similarity: number, body_found: boolean }
-        const data = await res.json()
-        const { similarity, body_found } = data
-
-        if (stop) return
-        if (body_found === false || !Number.isFinite(similarity)) {
-          setSimNum(null)
-          setSimilarity("N/A")
-          setStreak(0)
-          return
-        }
-        const n = Math.round(similarity)
-        setSimNum(n)
-        setSimilarity(`${n}%`)
-        // record similarity sample for aggregator
-        aggregator.recordSimilarity(n, true)
-        setStreak(prev => (n >= 70 ? prev + 1 : 0))
-      } catch {
-        if (!stop) {
-          setSimNum(null)
-          setSimilarity("N/A")
-          setStreak(0)
-        }
+      if (stop) return;
+      if (body_found === false || !Number.isFinite(similarity)) {
+        setSimNum(null);
+      } else {
+        const n = Math.round(similarity);
+        setSimNum(n);
+        aggregator.recordSimilarity(n, true);
       }
+    } catch {
+      if (!stop) setSimNum(null);
+    } finally {
+      inFlight.current = false;
     }
+  };
+
 
     // 先跑一次，之後每 1 秒（要判斷「連續 5 秒」就不能 10 秒一次）
     tick()
@@ -267,31 +266,65 @@ export default function PracticePage() {
 
   // ★ 連續 5 秒達標 -> 跳下一課或顯示總結頁
   useEffect(() => {
-  if (!lesson) return;
-  if (streak >= 5 && !showCongrats) {
-    // 結束這堂課的彙總
-    try { aggregator.finishLesson() } catch {}
-    // 開慶祝視窗 + 啟動倒數
-    setShowCongrats(true);
-    setNextCountdown(5);
-    clearCountdown();
-    countdownTimerRef.current = setInterval(() => {
-      setNextCountdown((s) => {
-        if (s <= 1) {
-          clearCountdown();
-          goNext();
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
+  if (!camOn || !videoStatus.connected || !lesson || showCongrats) {
+    clearQualifyTimer();
+    setQualifyCountdown(null);
+    return;
   }
-}, [streak, lesson, showCongrats]);  // 這個 effect 不要放 router 以免重跑
+
+  const qualifies = simNum !== null && simNum >= 70;
+
+  if (qualifies) {
+    // 沒在倒數中 -> 開始 5..1
+    if (qualifyCountdown === null) {
+      setQualifyCountdown(5);
+      clearQualifyTimer();
+      qualifyTimerRef.current = setInterval(() => {
+        setQualifyCountdown((c) => {
+          if (c === null) return c;
+          if (c <= 1) {
+            // 倒數結束 -> 顯示煙花 + 啟動「自動前往下一步」倒數
+            clearQualifyTimer();
+            setQualifyCountdown(null);
+            try { aggregator.finishLesson(); } catch {}
+            setShowCongrats(true);
+
+            setNextCountdown(5);
+            clearCountdown();
+            countdownTimerRef.current = setInterval(() => {
+              setNextCountdown((s) => {
+                if (s <= 1) {
+                  clearCountdown();
+                  goNext();
+                  return 0;
+                }
+                return s - 1;
+              });
+            }, 1000);
+
+            return null;
+          }
+          return c - 1;
+        });
+      }, 1000);
+    }
+  } else {
+    // 不符合門檻 -> 取消倒數
+    clearQualifyTimer();
+    setQualifyCountdown(null);
+  }
+
+  // 清理
+  return () => {
+    // 不做事，離開時有別的 cleanup
+  };
+}, [simNum, camOn, videoStatus.connected, lesson, showCongrats, qualifyCountdown]);
 
   useEffect(() => {
     return () => {
       try { disconnectVideo?.() } catch {}
       clearCountdown();
+      clearQualifyTimer();
     };
   }, [disconnectVideo]);
 
@@ -320,19 +353,40 @@ export default function PracticePage() {
   >
     {/* 頂部置中的提示/倒數浮層 */}
     {camOn && !showCongrats && (
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20">
-        {/* 倒數：streak 1..5 依序顯示 5..1 */}
-        {streak > 0 && streak <= 5 ? (
-          <div className="px-6 py-2 rounded-full bg-black/55 text-white text-3xl font-extrabold shadow-lg backdrop-blur">
-            {6 - streak}
-          </div>
-        ) : (
-          // 平常顯示「相似度未達 70%」
-          simNum !== null && simNum < 70 && (
-            <div className="px-3 py-1 rounded-full bg-white/85 text-gray-800 text-sm font-semibold shadow">
-              相似度未達 70%
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2">
+
+        {/* 1) 沒偵測到人像 */}
+        {simNum === null && (
+          <div className="relative mt-0 w-full">
+            <div className="relative flex w-full items-center gap-3 rounded-[2rem] bg-white/90 px-6 py-3 shadow-md">
+              {/* 驚嘆號 */}
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-yellow-400 font-black text-gray-900">!</span>
+              <div className="flex-1 text-center leading-tight">
+                <div className="text-sm font-semibold text-gray-800">請保持在畫面中央</div>
+              </div>
             </div>
-          )
+          </div>
+        )}
+
+        {/* 2) 有偵測但 < 70 */}
+        {simNum !== null && simNum < 70 && (
+          <div className="relative mt-0 w-full">
+            <div className="relative flex w-full items-center gap-3 rounded-[2rem] bg-white/90 px-6 py-3 shadow-md">
+              <div className="pointer-events-none absolute top-1/2 left-24 -translate-y-1/2 -translate-x-1/2 h-4 w-4 rotate-45 bg-white/90 shadow-md" />
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-yellow-400 font-black text-gray-900">!</span>
+              <div className="flex-1 text-center leading-tight">
+                <div className="text-sm font-semibold text-gray-800">相似度未達 70%</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3) 已達標：顯示倒數（只有在 streak 1..5） */}
+        {/* 達 70% 立即 5→1 倒數 */}
+        {qualifyCountdown !== null && (
+          <div className="px-6 py-2 rounded-full bg-black/55 text-white text-3xl font-extrabold shadow-lg backdrop-blur">
+            {qualifyCountdown}
+          </div>
         )}
       </div>
     )}
@@ -381,14 +435,14 @@ export default function PracticePage() {
         </span>
       </div>
       <div className="flex gap-3 w-full">
-        <div className="flex-1"><MetricPill value={ similarity } label="相似度" /></div>
+        <div className="flex-1"><MetricPill value={ simNum === null ? 'N/A' : `${simNum}%` } label="相似度" /></div>
         <div className="flex-1"><MetricPill value={startTime ? formatElapsedTime(elapsedTime) : "0:00"} label="用時" /></div>
       </div>
     </div>
 
     {/* 底部指標 */}
     <div className="absolute bottom-4 left-4 flex flex-wrap gap-4 z-10">
-      <HeartRateWidget onHeartRateUpdate={updateCalories} />
+      <HeartRateWidget readOnlyBpm={heartRate}/>
       <MetricPill value={totalCalories > 0 ? `${Math.round(totalCalories)}` : "0"} label="消耗(卡)" />
     </div>
   </div>
@@ -428,19 +482,19 @@ export default function PracticePage() {
                 </button>
                 {/* 同意 */}
                 <button
-                  onClick={async () => {
+                  onClick={() => {
                     Cookies.set("cam_consent", "1", { expires: 365, path: "/" });
                     localStorage.setItem("cam_consent", "1");
+
+                    // 先關相機彈窗、馬上顯示 HR 視窗
                     setShowConsent(false);
                     setCamOn(true);
+                    setShowHrModal(true);
 
-                    const ok = await connectVideo();
-                    if (!ok){
-                      console.error("❌ Failed to connect to imx93 video stream");
-                    }
-                    else {
-                      setShowHrModal(true);
-                    }
+                    // 相機在背景連線，不阻塞 UI、不影響 HR 視窗顯示
+                    void connectVideo().catch((err) => {
+                      console.error("❌ Failed to connect to imx93 video stream", err);
+                    });
                   }}
                   className="flex-1 rounded-lg bg-gray-900 px-5 py-5 text-white hover:bg-gray-800 active:scale-[0.98] transition text-2xl font-semibold"
                 >
@@ -514,7 +568,12 @@ export default function PracticePage() {
             {/* 置中按鈕 */}
             <div className="mt-10 flex justify-center gap-4">
               <button
-                onClick={() => { setShowCongrats(false); clearCountdown(); }}
+                onClick={() => { 
+                  setShowCongrats(false); 
+                  clearCountdown();
+                  clearQualifyTimer();
+                  setQualifyCountdown(null);  
+                }}
                 className="rounded-full px-6 py-3 bg-gray-200 text-gray-800 hover:bg-gray-300"
               >
                 先不要

@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { Heart, Bluetooth, X } from 'lucide-react'
 import apiService from '../../lib/api-service'
 
+let __hrw_streamStarted = false
+let __hrw_subscribers = 0
+
 interface Device {
   id: string
   name: string
@@ -29,9 +32,15 @@ interface HeartRateData {
 interface HeartRateWidgetProps {
   className?: string
   onHeartRateUpdate?: (heartRate: number) => void
+  readOnlyBpm?: number | null         
 }
 
-export default function HeartRateWidget({ className = '', onHeartRateUpdate }: HeartRateWidgetProps) {
+export default function HeartRateWidget({ 
+    className = '', 
+    onHeartRateUpdate,
+    readOnlyBpm,                   // 👈 新增解構，僅做顯示覆寫用 
+  }: HeartRateWidgetProps) {
+  
   const [devices, setDevices] = useState<Device[]>([])
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null)
   const [currentHeartRate, setCurrentHeartRate] = useState<number | null>(null)
@@ -111,16 +120,21 @@ export default function HeartRateWidget({ className = '', onHeartRateUpdate }: H
 
   // Load devices and setup event listeners
   useEffect(() => {
+    
     loadDevices()
 
-    // Set up event listeners
+    // refcount：第一個訂閱者出現時啟動串流
+    __hrw_subscribers += 1
+    if (!__hrw_streamStarted) {
+      apiService.startHeartRateStream()
+      __hrw_streamStarted = true
+    }
+
+    // 每個實例各自掛事件監聽
     apiService.on('connected', handleConnected)
     apiService.on('disconnected', handleDisconnected)
     apiService.on('heartRate', handleHeartRateData)
     apiService.on('error', handleError)
-
-    // Start heart rate stream
-    apiService.startHeartRateStream()
 
     // Cleanup on unmount
     return () => {
@@ -128,7 +142,14 @@ export default function HeartRateWidget({ className = '', onHeartRateUpdate }: H
       apiService.off('disconnected', handleDisconnected)
       apiService.off('heartRate', handleHeartRateData)
       apiService.off('error', handleError)
-      apiService.disconnect()
+
+      // 只有最後一個訂閱者卸載時，才真正斷線
+      __hrw_subscribers -= 1
+      if (__hrw_subscribers <= 0) {
+        __hrw_subscribers = 0
+        __hrw_streamStarted = false
+        apiService.disconnect()
+      }
     }
   }, [handleConnected, handleDisconnected, handleHeartRateData, handleError])
 
@@ -171,19 +192,12 @@ export default function HeartRateWidget({ className = '', onHeartRateUpdate }: H
     loadDevices() // Refresh devices when opening selector
   }
 
-  const getDisplayValue = () => {
-    if (currentHeartRate && selectedDevice) {
-      return currentHeartRate.toString()
-    }
-    return "N/A"
-  }
-
-  const getCircleColor = () => {
-    if (selectedDevice && currentHeartRate) {
-      return "bg-gradient-to-br from-green-400 to-green-600"
-    }
-    return "bg-gradient-to-br from-red-400 to-red-600"
-  }
+  const shownBpm = readOnlyBpm ?? currentHeartRate
+  const hasBpm   = shownBpm !== null && shownBpm !== undefined
+  const getDisplayValue = () => (hasBpm ? String(shownBpm) : "N/A")
+  const getCircleColor  = () =>
+    hasBpm ? "bg-gradient-to-br from-green-400 to-green-600"
+          : "bg-gradient-to-br from-red-400 to-red-600"
 
   return (
     <>
