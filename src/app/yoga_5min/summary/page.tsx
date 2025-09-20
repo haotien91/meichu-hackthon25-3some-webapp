@@ -146,8 +146,8 @@ function SummaryContent() {
       </section>
 
       <div className="w-full max-w-7xl flex gap-4 justify-end mb-12">
-        <button onClick={() => router.push("/plan_select")} className="px-6 py-3 bg-gray-800 text-white rounded-full">返回方案</button>
-        <button onClick={() => router.push("/yoga_5min/lesson-1/practice")} className="px-6 py-3 bg-amber-200 text-gray-800 rounded-full">重新開始</button>
+        <button onClick={() => router.push("/plan_select")} className="px-6 py-4 bg-gray-800 text-white rounded-full font-bold">返回方案</button>
+        <button onClick={() => router.push("/yoga_5min/lesson-1/practice")} className="px-6 py-4 bg-amber-200 text-gray-800 rounded-full font-bold">重新開始</button>
       </div>
     </main>
   );

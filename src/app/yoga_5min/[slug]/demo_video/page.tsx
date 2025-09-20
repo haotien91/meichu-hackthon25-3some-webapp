@@ -210,12 +210,12 @@ export default function DemoVideoPage() {
               </h3>
 
               {/* 倒數置中、放大（和練習頁一致） */}
-              <div className="mt-6 flex flex-col items-center justify-center" aria-live="polite">
-                <span className="text-sm text-gray-500">將在</span>
-                <span className="mt-2 text-7xl font-black text-gray-900 leading-none animate-pulse">
+              <div className="mt-10 flex flex-col items-center justify-center" aria-live="polite">
+                <span className="text-xl text-gray-500">將在</span>
+                <span className="mt-10 text-8xl font-black text-gray-900 leading-none animate-pulse">
                   {introCountdown ?? 3}
                 </span>
-                <span className="mt-2 text-sm text-gray-500">秒後開始播放影片</span>
+                <span className="mt-10 text-xl text-gray-500">秒後開始播放影片</span>
               </div>
 
               {/* 置中按鈕（和練習頁一致） */}
@@ -226,7 +226,7 @@ export default function DemoVideoPage() {
                     clearIntroTimer()
                     setIntroCountdown(null)
                   }}
-                  className="rounded-full px-6 py-3 bg-gray-200 text-gray-800 hover:bg-gray-300"
+                  className="rounded-full px-6 py-4 bg-gray-200 text-gray-800 hover:bg-gray-300 font-bold"
                 >
                   先不要
                 </button>
@@ -237,7 +237,7 @@ export default function DemoVideoPage() {
                     setShowIntro(false)
                     startAndPlay(true)
                   }}
-                  className="rounded-full px-6 py-3 bg-gray-900 text-white hover:bg-gray-800"
+                  className="rounded-full px-6 py-4 bg-gray-900 text-white hover:bg-gray-800 font-bold"
                 >
                   開始播放
                 </button>
@@ -261,12 +261,12 @@ export default function DemoVideoPage() {
               </h2>
 
               {/* 倒數置中、放大 */}
-              <div className="mt-6 flex flex-col items-center justify-center">
-                <span className="text-sm text-gray-500">將在</span>
-                <span className="mt-2 text-7xl font-black text-gray-900 leading-none animate-pulse">
+              <div className="mt-10 flex flex-col items-center justify-center">
+                <span className="text-xl text-gray-500">將在</span>
+                <span className="mt-10 text-8xl font-black text-gray-900 leading-none animate-pulse">
                   {endCountdown}
                 </span>
-                <span className="mt-2 text-sm text-gray-500">秒後自動進入練習</span>
+                <span className="mt-10 text-xl text-gray-500">秒後自動進入練習</span>
               </div>
 
               {/* 置中按鈕 */}
@@ -283,7 +283,7 @@ export default function DemoVideoPage() {
                       playerRef.current?.playVideo();
                     } catch {}
                   }}
-                  className="rounded-full px-6 py-3 bg-gray-200 text-gray-800 hover:bg-gray-300"
+                  className="rounded-full px-6 py-4 bg-gray-200 text-gray-800 hover:bg-gray-300 font-bold"
                 >
                   重新播放
                 </button>
@@ -293,7 +293,7 @@ export default function DemoVideoPage() {
                     clearEndTimer();           // 取消倒數
                     goPractice();
                   }}
-                  className="rounded-full px-6 py-3 bg-gray-900 text-white hover:bg-gray-800"
+                  className="rounded-full px-6 py-4 bg-gray-900 text-white hover:bg-gray-800 font-bold"
                 >
                   換我試試看！
                 </button>

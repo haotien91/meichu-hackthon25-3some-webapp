@@ -44,7 +44,7 @@ export default function PracticePage() {
   const [heartRate, setHeartRate] = useState<number | null>(null);
 
   const [showCongrats, setShowCongrats] = useState(false);
-  const [nextCountdown, setNextCountdown] = useState(5);
+  const [nextCountdown, setNextCountdown] = useState(3);
 
   const cameraPromptedRef = useRef(false)
   
@@ -319,7 +319,7 @@ export default function PracticePage() {
             try { aggregator.finishLesson(); } catch {}
             setShowCongrats(true);
 
-            setNextCountdown(5);
+            setNextCountdown(3);
             clearCountdown();
             countdownTimerRef.current = setInterval(() => {
               setNextCountdown((s) => {
@@ -405,11 +405,11 @@ export default function PracticePage() {
         {/* 1) 沒偵測到人像 */}
         {simNum === null && (
           <div className="relative mt-0 w-full">
-            <div className="relative flex w-full items-center gap-3 rounded-[2rem] bg-white/90 px-6 py-3 shadow-md">
+            <div className="relative flex w-full items-center gap-3 rounded-[2rem] bg-white/50 px-6 py-3 shadow-md">
               {/* 驚嘆號 */}
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-yellow-400 font-black text-gray-900">!</span>
               <div className="flex-1 text-center leading-tight">
-                <div className="text-sm font-semibold text-gray-800">請保持在畫面中央</div>
+                <div className="text-2xl font-semibold text-gray-800">請保持在畫面中央</div>
               </div>
             </div>
           </div>
@@ -421,7 +421,7 @@ export default function PracticePage() {
             <div className="relative flex w-full items-center gap-3 rounded-[2rem] bg-white/90 px-6 py-3 shadow-md">
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-yellow-400 font-black text-gray-900">!</span>
               <div className="flex-1 text-center leading-tight">
-                <div className="text-sm font-semibold text-gray-800">相似度未達 70%</div>
+                <div className="text-2xl font-semibold text-gray-800">相似度未達 70%</div>
               </div>
             </div>
           </div>
@@ -429,9 +429,9 @@ export default function PracticePage() {
 
         {/* 3) 已達標：顯示倒數（只有在 streak 1..5） */}
         {/* 達 70% 立即 5→1 倒數 */}
-        {qualifyCountdown !== null && (
-          <div className="px-6 py-2 rounded-full bg-black/55 text-white text-3xl font-extrabold shadow-lg backdrop-blur">
-            {qualifyCountdown}
+        { qualifyCountdown !== null && (
+          <div className="px-10 py-2 rounded-full bg-black/55 text-white text-5xl font-extrabold shadow-lg backdrop-blur">
+            { qualifyCountdown }
           </div>
         )}
       </div>
@@ -480,14 +480,14 @@ export default function PracticePage() {
           目標
         </span>
       </div>
-      <div className="flex gap-3 w-full">
+      <div className="flex gap-2 w-full">
         <div className="flex-1"><MetricPill value={ simNum === null ? 'N/A' : `${simNum}%` } label="相似度" /></div>
         <div className="flex-1"><MetricPill value={startTime ? formatElapsedTime(elapsedTime) : "0:00"} label="用時" /></div>
       </div>
     </div>
 
     {/* 底部指標 */}
-    <div className="absolute bottom-4 left-4 flex flex-wrap gap-4 z-10">
+    <div className="absolute bottom-4 left-4 flex flex-wrap gap-2 z-10">
       <HeartRateWidget onHeartRateUpdate={updateCalories} />
       <MetricPill value={totalCalories > 0 ? `${Math.round(totalCalories)}` : "0"} label="消耗(卡)" />
     </div>
@@ -608,41 +608,58 @@ export default function PracticePage() {
       <Modal open={!!showCongrats}>
         {/* 煙火層 */}
         <FireworksLayer />
+        <div className="relative w-full max-w-6xl rounded-3xl bg-white shadow-2xl overflow-hidden">
+          {/* 中線（桌機顯示，80% 高度） */}
+          <span className="hidden md:block absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[80%] w-px bg-gray-200" />
 
-        <div className="relative w-full max-w-xl rounded-3xl bg-white shadow-2xl overflow-hidden">
-          <div className="px-8 py-10 text-center relative">
-            <h3 className="text-4xl font-bold text-gray-900">太棒了！達標 🎉</h3>
-            {nextLesson && (
-              <div className="mt-6 flex flex-col items-center">
-                <img
-                  src={`/lessons_example/${nextLesson.slug}.png`}
-                  alt={`下一個動作：${nextLesson.title}`}
-                  className="h-48 w-auto rounded-xl shadow-md object-contain bg-white"
-                />
-                <p className="mt-3 text-sm text-gray-600">
-                  下一個動作：<span className="font-semibold text-gray-900">{nextLesson.title}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2">
+            {/* 左側：達標 + 下一個動作 */}
+            <div className="px-12 py-12 md:py-16 text-center flex flex-col items-center gap-6">
+              <h3 className="text-4xl font-bold text-gray-900 mb-8">太棒了！達標 🎉</h3>
+
+              {isLastLesson ? (
+                // ✅ 最後一課：顯示完成提示
+                <p className="mt-24 text-3xl text-gray-800 text-center font-semibold">
+                  您已完成所有動作
                 </p>
-              </div>
-            )}
-            {/* 倒數置中、放大（跟影片頁一致） */}
-            <div className="mt-6 flex flex-col items-center justify-center" aria-live="polite">
-              <span className="text-sm text-gray-500">將在</span>
-              <span className="mt-2 text-7xl font-black text-gray-900 leading-none animate-pulse">
-                { nextCountdown }
-              </span>
-              <span className="mt-2 text-sm text-gray-500">
-                {isLastLesson ? "秒後自動前往總結" : "秒後自動前往下一個示範影片"}
-              </span>
+              ) : (
+                // 不是最後一課：顯示下一個動作
+                nextLesson && (
+                  <div className="flex flex-col items-center gap-4 mx-auto">
+                    <img
+                      src={`/lessons_example/${nextLesson.slug}.png`}
+                      alt={`下一個動作：${nextLesson.displayTitle}`}
+                      className="h-48 w-auto rounded-xl shadow-md object-contain bg-white"
+                    />
+                    <p className="text-xl text-gray-600 text-center mt-8">
+                      下一個動作：
+                      <span className="font-semibold text-gray-900">{nextLesson.displayTitle}</span>
+                    </p>
+                  </div>
+                )
+              )}
+              {/* 行動裝置才顯示的水平分隔線 */}
+              <div className="mt-4 w-full border-t border-gray-200 md:hidden" />
             </div>
 
-            {/* 置中按鈕 */}
-            <div className="mt-10 flex justify-center gap-4">
-              <button
-                onClick={() => { clearCountdown(); goNext(); }}
-                className="rounded-full px-6 py-3 bg-gray-900 text-white hover:bg-gray-800"
-              >
-                前往下個動作
-              </button>
+            {/* 右側：倒數（拿掉滿高邊框，改用上方絕對定位的中線） */}
+            <div className="px-10 py-12 md:py-16 flex items-center justify-center">
+              <div className="flex flex-col items-center justify-center" aria-live="polite">
+                <span className="text-xl text-gray-500">將在</span>
+                <span className="mt-14 text-8xl font-black text-gray-900 leading-none animate-pulse">
+                  {nextCountdown}
+                </span>
+                <span className="mt-14 text-xl text-gray-500">
+                  {isLastLesson ? "秒後自動前往總結" : "秒後自動前往下一個示範影片"}
+                </span>
+
+                <button
+                  onClick={() => { clearCountdown(); goNext(); }}
+                  className="mt-14 rounded-full px-6 py-4 bg-gray-900 text-white hover:bg-gray-800 font-bold text-xl"
+                >
+                  {isLastLesson ? "前往總結" : "前往下個動作"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
