@@ -62,17 +62,28 @@ function SummaryContent() {
       <Navbar />
 
       {/* Program totals */}
-      <section className="w-full max-w-7xl bg-white/40 backdrop-blur-2xl rounded-3xl border border-white/30 drop-shadow px-8 py-8 mt-28 mb-8">
+      <section className="w-full max-w-7xl mx-auto bg-white/40 backdrop-blur-2xl rounded-3xl border border-white/30 drop-shadow px-8 py-8 mt-28 mb-8">
         <h2 className="text-3xl font-extrabold text-gray-800 mb-6">總結</h2>
+
         <div className="flex flex-wrap gap-4">
-          <Pill value={formatTime(totals.totalTimeSec)} label="總用時" />
-          <Pill value={`${Math.round(totals.totalCalories)}`} label="總消耗(卡)" />
-          <Pill value={totals.avgSim != null ? `${totals.avgSim}%` : "N/A"} label="平均相似度" />
-          {/* <Pill value={totals.minSim != null ? `${Math.round(totals.minSim)}%` : "N/A"} label="最低相似度" /> */}
-          <Pill value={totals.maxSim != null ? `${Math.round(totals.maxSim)}%` : "N/A"} label="最高相似度" />
-          <Pill value={totals.avgHR != null ? `${totals.avgHR} bpm` : "N/A"} label="平均心率" />
+          <div className="basis-0 grow min-w-[160px]">
+            <Pill value={formatTime(totals.totalTimeSec)} label="總用時" />
+          </div>
+          <div className="basis-0 grow min-w-[160px]">
+            <Pill value={`${Math.round(totals.totalCalories)}`} label="總消耗(卡)" />
+          </div>
+          <div className="basis-0 grow min-w-[160px]">
+            <Pill value={totals.avgSim != null ? `${totals.avgSim}%` : "N/A"} label="平均相似度" />
+          </div>
+          <div className="basis-0 grow min-w-[160px]">
+            <Pill value={totals.maxSim != null ? `${Math.round(totals.maxSim)}%` : "N/A"} label="最高相似度" />
+          </div>
+          <div className="basis-0 grow min-w-[160px]">
+            <Pill value={totals.avgHR != null ? `${totals.avgHR} bpm` : "N/A"} label="平均心率" />
+          </div>
         </div>
       </section>
+
 
       {/* Per-lesson cards */}
       <section className="w-full max-w-7xl bg-white/40 backdrop-blur-2xl rounded-3xl border border-white/30 drop-shadow px-8 py-8 mb-8">
@@ -146,8 +157,8 @@ function SummaryContent() {
       </section>
 
       <div className="w-full max-w-7xl flex gap-4 justify-end mb-12">
-        <button onClick={() => router.push("/plan_select")} className="px-6 py-4 bg-gray-800 text-white rounded-full font-bold">返回方案</button>
-        <button onClick={() => router.push("/yoga_5min/lesson-1/practice")} className="px-6 py-4 bg-amber-200 text-gray-800 rounded-full font-bold">重新開始</button>
+        <button onClick={() => router.push("/plan_select")} className="px-6 py-4 bg-gray-800 text-white rounded-full font-bold hover:bg-gray-600 transition-colors">返回方案</button>
+        <button onClick={() => router.push("/yoga_5min/lesson-1/practice")} className="px-6 py-4 bg-amber-200 text-gray-800 rounded-full font-bold hover:bg-amber-300 transition-colors">重新開始</button>
       </div>
     </main>
   );
