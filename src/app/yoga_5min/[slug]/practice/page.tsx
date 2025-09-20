@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from "react"
 import Cookies from "js-cookie"
 import HeartRateWidget from "../../../components/HeartRateWidget"
 import aggregator from "../../../../lib/programRunAggregator"
-import FireworksLayer from "../../../components/firework"
+import FireworksLayer from "../../../components/Firework"
 import Modal from "../../../components/Modal";
 import { useImx93Video } from "../../../../hooks/useImx93Video"
 
@@ -507,7 +507,7 @@ export default function PracticePage() {
         )}
 
         {/* 進場詢問（只調整同意按鈕，寫 cookie，以後不再問） */}
-      {showConsent && (
+      {showConsent && !showHrModal && (
         <Modal open={!!showConsent}>
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl text-center">
             <div className="px-10 py-8">
