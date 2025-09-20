@@ -1,16 +1,19 @@
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
-import { findBySlug } from "../../lessons"
-import { lessons } from "../../lessons"
+import { findBySlug, lessons } from "../../lessons"
 import { useEffect, useState, useRef } from "react"
 import Cookies from "js-cookie"
 import HeartRateWidget from "../../../components/HeartRateWidget"
 import aggregator from "../../../../lib/programRunAggregator"
 import FireworksLayer from "../../../components/firework"
+import Modal from "../../../components/Modal";
 import { useImx93Video } from "../../../../hooks/useImx93Video"
 
 type Profile = { height: string; weight: string; age: string; gender: string }
+
+const HR_PROMPT_DONE_KEY = "hr_prompt_done"
+const HR_CONNECTED_KEY = "hr_connected_once"
 
 // 小圓 pill：左邊小圓點 + 右邊數值/標籤
 function MetricPill({ value, label }: { value: string; label: string }) {
@@ -42,6 +45,8 @@ export default function PracticePage() {
 
   const [showCongrats, setShowCongrats] = useState(false);
   const [nextCountdown, setNextCountdown] = useState(5);
+
+  const cameraPromptedRef = useRef(false)
   
   
   const [qualifyCountdown, setQualifyCountdown] = useState<number | null>(null); // 5..1
@@ -76,18 +81,22 @@ export default function PracticePage() {
 
   // 前往下一步
   const goNext = () => {
-  const next = getNextSlug(lesson?.slug ?? slug);
-  if (next) {
-    router.push(`/yoga_5min/${next}/demo_video`);
-  } else {
-    const program = "yoga_5min";
-    const active = aggregator.getActiveRun(program);
-    const runId = active?.runId;
-    aggregator.finishProgram();
-    if (runId) router.push(`/yoga_5min/summary?run=${encodeURIComponent(runId)}`);
-    else router.push(`/yoga_5min/summary`);
-  }
-};
+    const next = getNextSlug(lesson?.slug ?? slug);
+    if (next) {
+      router.push(`/yoga_5min/${next}/demo_video`);
+    } else {
+      const program = "yoga_5min";
+      const active = aggregator.getActiveRun(program);
+      const runId = active?.runId;
+      aggregator.finishProgram();
+      if (runId) router.push(`/yoga_5min/summary?run=${encodeURIComponent(runId)}`);
+      else router.push(`/yoga_5min/summary`);
+    }
+  };
+
+  const nextSlug = getNextSlug(lesson?.slug ?? slug)
+  const nextLesson = nextSlug ? lessons.find(l => l.slug === nextSlug) : null
+  const isLastLesson = !nextLesson
 
 
   // 清除倒數計時器
@@ -124,6 +133,14 @@ export default function PracticePage() {
   const updateCalories = (newHeartRate: number) => {
     // 記錄心率樣本供彙總
     setHeartRate(newHeartRate); 
+    try {
+    if (newHeartRate > 0) {
+      localStorage.setItem(HR_CONNECTED_KEY, "1")
+      Cookies.set(HR_CONNECTED_KEY, "1", { expires: 365, path: "/" })
+      localStorage.setItem(HR_PROMPT_DONE_KEY, "1")      // 👈 新增
+      Cookies.set(HR_PROMPT_DONE_KEY, "1", { expires: 365, path: "/" })
+    }
+  } catch {}
     aggregator.recordHeartRate(newHeartRate)
 
     if (!profile || !lastHeartRateTime) {
@@ -162,26 +179,39 @@ export default function PracticePage() {
     }
   }, [])
 
+  // ✅ 首先只決定「要不要先出藍牙彈窗」
   useEffect(() => {
-  const consent =
-    Cookies.get("cam_consent") === "1" ||
-    (typeof window !== "undefined" && localStorage.getItem("cam_consent") === "1");
+    const hasConnectedOnce =
+      (typeof window !== "undefined" && localStorage.getItem(HR_CONNECTED_KEY) === "1") ||
+      Cookies.get(HR_CONNECTED_KEY) === "1"
 
-  setShowConsent(!consent);
-  setCamOn(consent);
+    const hrPromptDone =
+      (typeof window !== "undefined" && localStorage.getItem(HR_PROMPT_DONE_KEY) === "1") ||
+      Cookies.get(HR_PROMPT_DONE_KEY) === "1"
 
-  if (consent) {
-    // 直接顯示 HR 視窗
-    setShowHrModal(true);
+    // 沒連過 -> 先出 HR 彈窗；連過 -> 直接進入下一步（相機同意流程）
+    setShowHrModal(!(hasConnectedOnce || hrPromptDone))
+  }, [])
 
-    // 背景連相機
-    void connectVideo().catch((err) => {
-      console.error("❌ auto-connect failed", err);
-    });
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, []);
+  // ✅ 等藍牙彈窗關閉，才處理相機同意與串流連線
+  useEffect(() => {
+    if (showHrModal) return           // 還在挑裝置，就先不管相機
+    if (cameraPromptedRef.current) return
+    cameraPromptedRef.current = true  // 只處理一次
 
+    const consent =
+      Cookies.get("cam_consent") === "1" ||
+      (typeof window !== "undefined" && localStorage.getItem("cam_consent") === "1")
+
+    setShowConsent(!consent)
+    setCamOn(consent)
+
+    if (consent) {
+      void connectVideo().catch(err => {
+        console.error("❌ auto-connect failed", err)
+      })
+    }
+  }, [showHrModal, connectVideo])
 
   // ★ 啟動/接續本次課程的彙總收集（使用 localStorage）
   useEffect(() => {
@@ -320,6 +350,23 @@ export default function PracticePage() {
   };
 }, [simNum, camOn, videoStatus.connected, lesson, showCongrats, qualifyCountdown]);
 
+  // ✅ 放在元件頂層（與其他 useEffect 平行）
+  // 恭喜視窗開啟時關閉相機與串流
+  useEffect(() => {
+    if (!showCongrats) return;
+    setCamOn(false);
+    try { disconnectVideo?.() } catch {}
+
+    // 可選：清空畫布避免殘影
+    try {
+      const ctx = canvasRef.current?.getContext('2d');
+      if (ctx && canvasRef.current) {
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    } catch {}
+  }, [showCongrats, disconnectVideo]);
+
+
   useEffect(() => {
     return () => {
       try { disconnectVideo?.() } catch {}
@@ -372,7 +419,6 @@ export default function PracticePage() {
         {simNum !== null && simNum < 70 && (
           <div className="relative mt-0 w-full">
             <div className="relative flex w-full items-center gap-3 rounded-[2rem] bg-white/90 px-6 py-3 shadow-md">
-              <div className="pointer-events-none absolute top-1/2 left-24 -translate-y-1/2 -translate-x-1/2 h-4 w-4 rotate-45 bg-white/90 shadow-md" />
               <span className="flex h-9 w-9 items-center justify-center rounded-full bg-yellow-400 font-black text-gray-900">!</span>
               <div className="flex-1 text-center leading-tight">
                 <div className="text-sm font-semibold text-gray-800">相似度未達 70%</div>
@@ -442,7 +488,7 @@ export default function PracticePage() {
 
     {/* 底部指標 */}
     <div className="absolute bottom-4 left-4 flex flex-wrap gap-4 z-10">
-      <HeartRateWidget readOnlyBpm={heartRate}/>
+      <HeartRateWidget onHeartRateUpdate={updateCalories} />
       <MetricPill value={totalCalories > 0 ? `${Math.round(totalCalories)}` : "0"} label="消耗(卡)" />
     </div>
   </div>
@@ -462,7 +508,7 @@ export default function PracticePage() {
 
         {/* 進場詢問（只調整同意按鈕，寫 cookie，以後不再問） */}
       {showConsent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <Modal open={!!showConsent}>
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl text-center">
             <div className="px-10 py-8">
               <h2 id="modal-title" className="text-4xl font-bold text-gray-900 py-6">將開啟相機功能</h2>
@@ -486,10 +532,8 @@ export default function PracticePage() {
                     Cookies.set("cam_consent", "1", { expires: 365, path: "/" });
                     localStorage.setItem("cam_consent", "1");
 
-                    // 先關相機彈窗、馬上顯示 HR 視窗
                     setShowConsent(false);
                     setCamOn(true);
-                    setShowHrModal(true);
 
                     // 相機在背景連線，不阻塞 UI、不影響 HR 視窗顯示
                     void connectVideo().catch((err) => {
@@ -503,17 +547,12 @@ export default function PracticePage() {
               </div>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {showHrModal && (
-      <div
-        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-6"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="hr-modal-title"
-      >
-        <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+      <Modal open={!!showHrModal}>
+        <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl text-center">
           <div className="px-10 py-8">
             <h3 id="hr-modal-title" className="text-2xl font-bold text-gray-900 mb-2">
               連接藍牙心率裝置
@@ -524,18 +563,36 @@ export default function PracticePage() {
 
             {/* 直接放既有的 HeartRateWidget，不改你原本的更新邏輯 */}
             <div className="rounded-xl border-gray-200 p-4 mb-6 max-w-min mx-auto">
-              <HeartRateWidget onHeartRateUpdate={updateCalories} />
+              <HeartRateWidget readOnlyBpm={heartRate} />
             </div>
 
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => setShowHrModal(false)}
+                onClick={() => {
+                  try {
+                    localStorage.setItem(HR_PROMPT_DONE_KEY, "1")
+                    Cookies.set(HR_PROMPT_DONE_KEY, "1", { expires: 365, path: "/" })
+                  } catch {}
+                  setShowHrModal(false)
+                }}
                 className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
               >
-                稍後再說
+                取消
               </button>
               <button
-                onClick={() => setShowHrModal(false)}
+                onClick={() => {
+                  try {
+                    // 有讀到心率就標記「已連過」
+                    if (heartRate && heartRate > 0) {
+                      localStorage.setItem(HR_CONNECTED_KEY, "1")
+                      Cookies.set(HR_CONNECTED_KEY, "1", { expires: 365, path: "/" })
+                    }
+                    // 一律標記「已詢問過」
+                    localStorage.setItem(HR_PROMPT_DONE_KEY, "1")
+                    Cookies.set(HR_PROMPT_DONE_KEY, "1", { expires: 365, path: "/" })
+                  } catch {}
+                  setShowHrModal(false)
+                }}
                 className="rounded-lg bg-gray-900 px-4 py-2 text-white hover:bg-gray-800"
               >
                 完成
@@ -543,41 +600,43 @@ export default function PracticePage() {
             </div>
           </div>
         </div>
-      </div>
+      </Modal>
     )}
 
     {/* ✅ 達標慶祝視窗 */}
     {showCongrats && (
-      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-6">
+      <Modal open={!!showCongrats}>
         {/* 煙火層 */}
         <FireworksLayer />
 
         <div className="relative w-full max-w-xl rounded-3xl bg-white shadow-2xl overflow-hidden">
           <div className="px-8 py-10 text-center relative">
             <h3 className="text-4xl font-bold text-gray-900">太棒了！達標 🎉</h3>
-
+            {nextLesson && (
+              <div className="mt-6 flex flex-col items-center">
+                <img
+                  src={`/lessons_example/${nextLesson.slug}.png`}
+                  alt={`下一個動作：${nextLesson.title}`}
+                  className="h-48 w-auto rounded-xl shadow-md object-contain bg-white"
+                />
+                <p className="mt-3 text-sm text-gray-600">
+                  下一個動作：<span className="font-semibold text-gray-900">{nextLesson.title}</span>
+                </p>
+              </div>
+            )}
             {/* 倒數置中、放大（跟影片頁一致） */}
             <div className="mt-6 flex flex-col items-center justify-center" aria-live="polite">
               <span className="text-sm text-gray-500">將在</span>
               <span className="mt-2 text-7xl font-black text-gray-900 leading-none animate-pulse">
-                {nextCountdown}
+                { nextCountdown }
               </span>
-              <span className="mt-2 text-sm text-gray-500">秒後自動前往下一個動作</span>
+              <span className="mt-2 text-sm text-gray-500">
+                {isLastLesson ? "秒後自動前往總結" : "秒後自動前往下一個示範影片"}
+              </span>
             </div>
 
             {/* 置中按鈕 */}
             <div className="mt-10 flex justify-center gap-4">
-              <button
-                onClick={() => { 
-                  setShowCongrats(false); 
-                  clearCountdown();
-                  clearQualifyTimer();
-                  setQualifyCountdown(null);  
-                }}
-                className="rounded-full px-6 py-3 bg-gray-200 text-gray-800 hover:bg-gray-300"
-              >
-                先不要
-              </button>
               <button
                 onClick={() => { clearCountdown(); goNext(); }}
                 className="rounded-full px-6 py-3 bg-gray-900 text-white hover:bg-gray-800"
@@ -587,7 +646,7 @@ export default function PracticePage() {
             </div>
           </div>
         </div>
-      </div>
+      </Modal>
     )}
     </main>
   )
