@@ -6,7 +6,7 @@ import { useEffect, useState, useRef } from "react"
 import Cookies from "js-cookie"
 import HeartRateWidget from "../../../components/HeartRateWidget"
 import aggregator from "../../../../lib/programRunAggregator"
-import FireworksLayer from "../../../components/firework"
+import FireworksLayer from "../../../components/Firework"
 import Modal from "../../../components/Modal";
 import { useImx93Video } from "../../../../hooks/useImx93Video"
 import { lcdClient } from "../../../../lib/lcdClient"
@@ -15,6 +15,8 @@ type Profile = { height: string; weight: string; age: string; gender: string }
 
 const HR_PROMPT_DONE_KEY = "hr_prompt_done"
 const HR_CONNECTED_KEY = "hr_connected_once"
+const GUIDE_DONE_KEY = "guide_done_v1";
+
 
 // 小圓 pill：左邊小圓點 + 右邊數值/標籤
 function MetricPill({ value, label }: { value: string; label: string }) {
@@ -53,6 +55,14 @@ export default function PracticePage() {
   const [qualifyCountdown, setQualifyCountdown] = useState<number | null>(null); // 5..1
   const qualifyTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isFirstLesson = slug === "lesson-1";
+
+  const [showGuide, setShowGuide] = useState(false);
+  const [guideStep, setGuideStep] = useState(0); // 0..3 共四張
+  const GUIDE_TOTAL = 4;
+
+  const [guideDecided, setGuideDecided] = useState(false);
 
   const clearQualifyTimer = () => {
   if (qualifyTimerRef.current) {
@@ -174,6 +184,16 @@ export default function PracticePage() {
   }
 
   useEffect(() => {
+    if (!isFirstLesson) { 
+      setGuideDecided(true); // 不是第一課，直接放行後續流程
+      return; 
+    }
+    const seen = (typeof window !== "undefined" && localStorage.getItem(GUIDE_DONE_KEY) === "1");
+    setShowGuide(!seen);     // 該顯示就顯示
+    setGuideDecided(true);   // ✅ 不論有沒有顯示，都標記「導覽已判定」
+  }, [isFirstLesson]);
+
+  useEffect(() => {
     const raw = Cookies.get("personal_info")
     if (raw) {
       try { setProfile(JSON.parse(raw)) } catch {}
@@ -182,6 +202,10 @@ export default function PracticePage() {
 
   // ✅ 首先只決定「要不要先出藍牙彈窗」
   useEffect(() => {
+    if (!guideDecided) return; 
+    if (showGuide) return;     
+
+
     const hasConnectedOnce =
       (typeof window !== "undefined" && localStorage.getItem(HR_CONNECTED_KEY) === "1") ||
       Cookies.get(HR_CONNECTED_KEY) === "1"
@@ -192,12 +216,15 @@ export default function PracticePage() {
 
     // 沒連過 -> 先出 HR 彈窗；連過 -> 直接進入下一步（相機同意流程）
     setShowHrModal(!(hasConnectedOnce || hrPromptDone))
-  }, [])
+  }, [showGuide, guideDecided])
 
   // ✅ 等藍牙彈窗關閉，才處理相機同意與串流連線
   useEffect(() => {
-    if (showHrModal) return           // 還在挑裝置，就先不管相機
-    if (cameraPromptedRef.current) return
+    if (!guideDecided) return; // 👈 導覽先完成
+    if (showGuide) return;     // 👈 導覽顯示中
+    if (showHrModal) return;   // 👈 HR 尚未完成
+    if (cameraPromptedRef.current) return;
+
     cameraPromptedRef.current = true  // 只處理一次
 
     const consent =
@@ -212,7 +239,7 @@ export default function PracticePage() {
         console.error("❌ auto-connect failed", err)
       })
     }
-  }, [showHrModal, connectVideo])
+  }, [guideDecided, showGuide, showHrModal, connectVideo]);
 
   // ★ 啟動/接續本次課程的彙總收集（使用 localStorage）
   useEffect(() => {
@@ -499,7 +526,7 @@ export default function PracticePage() {
 
 
         {/* 底部個資卡片 */}
-        {profile && (
+        {/* {profile && (
           <div className="bg-white/60 backdrop-blur-md rounded-2xl shadow-md p-4 text-gray-800 text-lg font-semibold max-w-7xl w-full">
             <div className="grid grid-cols-4 gap-6">
               <p>身高：{profile.height} cm</p>
@@ -508,52 +535,91 @@ export default function PracticePage() {
               <p>性別：{profile.gender}</p>
             </div>
           </div>
+        )} */}
+
+        {showGuide && (
+          <Modal open={showGuide}>
+            <div className="w-full max-w-3xl rounded-3xl bg-white shadow-2xl text-center p-8 sm:p-10">
+              <h3 className="text-4xl font-bold text-gray-900 mb-8">教學</h3>
+
+              <img
+                src={`/guide/guide_${guideStep + 1}.jpeg`}
+                alt={`教學 ${guideStep + 1}`}
+                className="w-full max-h-[75vh] object-contain rounded-2xl"
+              />
+              <div className="mt-8 text-gray-500 text-lg">{guideStep + 1} / {GUIDE_TOTAL}</div>
+
+              <div className="mt-6 flex justify-center gap-4">
+                <button
+                  onClick={() => { try { localStorage.setItem(GUIDE_DONE_KEY, "1"); } catch {} ; setShowGuide(false); }}
+                  className="rounded-full px-6 py-3 bg-gray-200 text-gray-800 hover:bg-gray-300 text-lg"
+                >
+                  跳過
+                </button>
+
+                {guideStep < GUIDE_TOTAL - 1 ? (
+                  <button
+                    onClick={() => setGuideStep(s => s + 1)}
+                    className="rounded-full px-8 py-4 bg-gray-900 text-white hover:bg-gray-800 text-lg"
+                  >
+                    下一步
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { try { localStorage.setItem(GUIDE_DONE_KEY, "1"); } catch {} ; setShowGuide(false); }}
+                    className="rounded-full px-8 py-4 bg-gray-900 text-white hover:bg-gray-800 text-lg"
+                  >
+                    完成
+                  </button>
+                )}
+              </div>
+            </div>
+          </Modal>
         )}
 
         {/* 進場詢問（只調整同意按鈕，寫 cookie，以後不再問） */}
-      {showConsent && !showHrModal && (
-        <Modal open={!!showConsent}>
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl text-center">
-            <div className="px-10 py-8">
-              <h2 id="modal-title" className="text-4xl font-bold text-gray-900 py-6">將開啟相機功能</h2>
-              <p className="text-gray-600 text-lg">我們會在主畫面顯示即時相機畫面。是否同意開啟？</p>
-              <div className="mt-8 flex gap-6">
-                {/* 不同意 */}
-                <button
-                  autoFocus
-                  onClick={() => {
-                    setShowConsent(false);
-                    setCamOn(false);
-                    // 不要設 cookie、不要連線
-                  }}
-                  className="flex-1 rounded-lg bg-gray-200 px-5 py-5 text-gray-800 hover:bg-gray-300 active:scale-[0.98] transition text-2xl font-semibold"
-                >
-                  不同意
-                </button>
-                {/* 同意 */}
-                <button
-                  onClick={() => {
-                    Cookies.set("cam_consent", "1", { expires: 365, path: "/" });
-                    localStorage.setItem("cam_consent", "1");
+        {showConsent && !showHrModal && (
+          <Modal open={!!showConsent}>
+            <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl text-center">
+              <div className="px-10 py-8">
+                <h2 id="modal-title" className="text-4xl font-bold text-gray-900 py-6">將開啟相機功能</h2>
+                <p className="text-gray-600 text-lg">我們會在主畫面顯示即時相機畫面。是否同意開啟？</p>
+                <div className="mt-8 flex gap-6">
+                  {/* 不同意 */}
+                  <button
+                    autoFocus
+                    onClick={() => {
+                      setShowConsent(false);
+                      setCamOn(false);
+                      // 不要設 cookie、不要連線
+                    }}
+                    className="flex-1 rounded-lg bg-gray-200 px-5 py-5 text-gray-800 hover:bg-gray-300 active:scale-[0.98] transition text-2xl font-semibold"
+                  >
+                    不同意
+                  </button>
+                  {/* 同意 */}
+                  <button
+                    onClick={() => {
+                      Cookies.set("cam_consent", "1", { expires: 365, path: "/" });
+                      localStorage.setItem("cam_consent", "1");
 
-                    setShowConsent(false);
-                    setCamOn(true);
+                      setShowConsent(false);
+                      setCamOn(true);
 
-                    // 相機在背景連線，不阻塞 UI、不影響 HR 視窗顯示
-                    void connectVideo().catch((err) => {
-                      console.error("❌ Failed to connect to imx93 video stream", err);
-                    });
-                  }}
-                  className="flex-1 rounded-lg bg-gray-900 px-5 py-5 text-white hover:bg-gray-800 active:scale-[0.98] transition text-2xl font-semibold"
-                >
-                  同意
-                </button>
+                      // 相機在背景連線，不阻塞 UI、不影響 HR 視窗顯示
+                      void connectVideo().catch((err) => {
+                        console.error("❌ Failed to connect to imx93 video stream", err);
+                      });
+                    }}
+                    className="flex-1 rounded-lg bg-gray-900 px-5 py-5 text-white hover:bg-gray-800 active:scale-[0.98] transition text-2xl font-semibold"
+                  >
+                    同意
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </Modal>
-      )}
-
+          </Modal>
+        )}
       {showHrModal && (
       <Modal open={!!showHrModal}>
         <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl text-center">
