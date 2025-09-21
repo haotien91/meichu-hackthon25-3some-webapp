@@ -9,6 +9,7 @@ import aggregator from "../../../../lib/programRunAggregator"
 import FireworksLayer from "../../../components/firework"
 import Modal from "../../../components/Modal";
 import { useImx93Video } from "../../../../hooks/useImx93Video"
+import { lcdClient } from "../../../../lib/lcdClient"
 
 type Profile = { height: string; weight: string; age: string; gender: string }
 
@@ -223,6 +224,8 @@ export default function PracticePage() {
     try { const raw = Cookies.get("personal_info"); snapshot = raw ? JSON.parse(raw) : undefined } catch {}
     if (!active) {
       aggregator.beginRun(program, snapshot)
+      // Start LCD progress with total lessons at the beginning of a new run (fire-and-forget)
+      void lcdClient.lessonStart(lessons.length)
     }
     aggregator.beginLesson(slug)
   }, [slug])
@@ -317,6 +320,7 @@ export default function PracticePage() {
             clearQualifyTimer();
             setQualifyCountdown(null);
             try { aggregator.finishLesson(); } catch {}
+            void lcdClient.lessonNext()
             setShowCongrats(true);
 
             setNextCountdown(3);

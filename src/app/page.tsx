@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Image from "next/image"
+import { lcdClient } from "../lib/lcdClient"
 
 import LogoMarquee from "./components/LogoMarquee";
 import Navbar from "./components/Navbar";
@@ -14,6 +15,11 @@ export default function Home() {
   useEffect(() => {
     // 當 component 掛載後觸發動畫
     setLoaded(true)
+  }, [])
+
+  // Initialize LCD on landing page entry (non-blocking)
+  useEffect(() => {
+    void lcdClient.init()
   }, [])
 
   return (

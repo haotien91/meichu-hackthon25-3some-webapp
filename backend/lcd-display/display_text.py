@@ -18,10 +18,10 @@ try:
     print("Writing to display...")
     
     # Display text on line 1
-    mylcd.lcd_string("Hello, i.MX 93!", 1)
+    mylcd.lcd_string("Team 3Some", 1)
     
     # Display text on line 2
-    mylcd.lcd_string("This is line 2", 2)
+    mylcd.lcd_string("Your yoga coach", 2)
     
     sleep(5) # Keep the text on screen for 5 seconds
     
