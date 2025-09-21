@@ -10,6 +10,7 @@
 from fastapi import FastAPI, Body
 from fastapi.responses import JSONResponse
 import threading
+from time import sleep
 # Progress bar helpers
 from display_progress import load_custom_chars, init_progress_screen, update_label_delta, update_bar_delta
 
@@ -62,6 +63,72 @@ _lesson_total = 0
 _lesson_current = 0
 _lesson_last_label = ""
 _lesson_last_percent = 0
+
+
+# --- Celebration animation helpers ---
+def _center(text: str, width: int = 16) -> str:
+    t = (text or "")[:width]
+    pad = max(0, width - len(t))
+    left = pad // 2
+    right = pad - left
+    return (" " * left) + t + (" " * right)
+
+
+def _run_congrats_animation():
+    """Non-blocking celebration animation when program completes.
+    Runs in a background thread; best-effort with lock per write.
+    """
+    try:
+        width = 16
+        # Start with a clean screen
+        try:
+            with _lcd_lock:
+                _lcd.lcd_clear()
+        except Exception:
+            pass
+
+        # 1) Scroll "Completed!" across line 1 with a supportive line 2
+        msg = "  Completed!  "  # padded for nicer scroll
+        scroll = (" " * width) + msg + (" " * width)
+        for i in range(0, len(scroll) - width + 1):
+            frame = scroll[i:i+width]
+            try:
+                with _lcd_lock:
+                    _lcd.lcd_string(frame, 1)
+                    _lcd.lcd_string(_center("Great Job!", width), 2)
+            except Exception:
+                pass
+            sleep(0.01)
+
+        # 2) Brief blink effect on line 2 (fake blink by toggling spaces)
+        final1 = _center("Completed!", width)
+        final2 = _center("Great Job!", width)
+        for _ in range(3):
+            try:
+                with _lcd_lock:
+                    _lcd.lcd_string(final1, 1)
+                    _lcd.lcd_string(final2, 2)
+            except Exception:
+                pass
+            sleep(0.18)
+            try:
+                with _lcd_lock:
+                    _lcd.lcd_string(final1, 1)
+                    _lcd.lcd_string(" " * width, 2)
+            except Exception:
+                pass
+            sleep(0.12)
+
+        # 3) Settle on the final congratulations text
+        try:
+            with _lcd_lock:
+                _lcd.lcd_string(final1, 1)
+                _lcd.lcd_string(final2, 2)
+        except Exception:
+            pass
+    except Exception:
+        # Best-effort; never raise from background thread
+        pass
 
 @app.get("/lcd/health")
 def health():
@@ -127,13 +194,28 @@ def lesson_next():
     completed = _lesson_current >= _lesson_total
     label = f"In Progress {_lesson_current}/{_lesson_total}"
 
-    with _lcd_lock:
-        # Update line 1 first (minimal diff), then the bar delta — no display off/on
-        update_label_delta(_lcd, _lesson_last_label, label)
-        update_bar_delta(_lcd, _lesson_last_percent, 100 if completed else percent)
-        # store last state
+    if completed:
+        # Celebrate completion: clear and run a brief animation in background
         _lesson_last_label = label
-        _lesson_last_percent = 100 if completed else percent
+        _lesson_last_percent = 100
+        try:
+            with _lcd_lock:
+                _lcd.lcd_clear()
+        except Exception:
+            pass
+        try:
+            t = threading.Thread(target=_run_congrats_animation, daemon=True)
+            t.start()
+        except Exception:
+            pass
+    else:
+        with _lcd_lock:
+            # Update line 1 first (minimal diff), then the bar delta — no display off/on
+            update_label_delta(_lcd, _lesson_last_label, label)
+            update_bar_delta(_lcd, _lesson_last_percent, percent)
+            # store last state
+            _lesson_last_label = label
+            _lesson_last_percent = percent
 
     return {
         "ok": True,
